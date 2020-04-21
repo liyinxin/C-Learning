@@ -344,13 +344,13 @@ char类型的一般都是现需要提升到int类型！
 					cast-name<type>(expression);
 其中，type是转换的目标类型而expression是要转换的值。如果type是引用类型，则结果是左值。cast-name是static_cast,dynamic_cast,const_cast和reinterpret_cast中一种。
 
-static_casr
-	任何具有明确定义的类型转换，只要不包括底层const，都可以使用static_casr。例如，通过将一个运算对象强制转换成double类型就能使表达式执行浮点数除法：
+static_cast
+	任何具有明确定义的类型转换，只要不包括底层const，都可以使用static_cast。例如，通过将一个运算对象强制转换成double类型就能使表达式执行浮点数除法：
 				double slope = static_casr<double>(j) / i;
-static_cast对于编译器无法自动执行的类型转换也非常有用。例如，我们可以使用static_casr找回存在于void *指针中的值：
+static_cast对于编译器无法自动执行的类型转换也非常有用。例如，我们可以使用static_cast找回存在于void *指针中的值：
 			void *p = &d;	//正确，因为任何非常量对象的地址都能存入到void *中去。
 			double *dp = static_cast<double *>(p);
-当我们把指针存放在void *中，并且使用static将其强制转换原来的类型时，应该确保指针的值保持不变。也就是说，强制转换的结果将与原始的地址相等，因此我们必须确保转换后所得的类型就是指针所指的类型。类型一旦不符，将产生未定义的后果！
+当我们把指针存放在void *中，并且使用static_cast将其强制转换原来的类型时，应该确保指针的值保持不变。也就是说，强制转换的结果将与原始的地址相等，因此我们必须确保转换后所得的类型就是指针所指的类型。类型一旦不符，将产生未定义的后果！
 
 const_cast
 	const_cast只能改变运算对象的底层const，这里回顾下什么叫底层const!
