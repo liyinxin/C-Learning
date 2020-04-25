@@ -656,3 +656,1100 @@ Pub_Derv的派生类之所以能访问Base的prot_mem成员是因为该成员在
 对于派生类的派生类来说是同样的道理，就
 可以把派生类产生的派生类看做是一个派生来对象来看待。
 
+派生类向基类转换的可访问性
+	派生类向基类的转换是否可访问由使用该转换的代码决定，同时派生类的派生访问说明符也会有影响。假定D继承
+自B:
+		>>>	只有当D公有地继承B时，用户代码才能使用派生类向基类的转换；如果D继承B的方式是受保护的或者
+私有的，则用户代码不能使用该转换。
+		>>>	不论D以什么方式继承B，D的成员函数和友元都能使用派生类向基类的转换；派生类向其直接基类的类
+型转换对于派生类的成员和友元来说永远是可访问的。
+		>>>	如果D继承B的方式是公有的或者受保护的，则D的派生类的成员和友元可以使用D向B的类型转换；反之，
+如果D继承B的方式是私有的，则不能使用。(注意这个和第二条的区别，这里说的是D的派生类的成员函数或友元，而第
+二条说的是D的成员函数或友元)
+注意:
+	对于代码中的某个给节点来说，如果基类的公有成员是可访问的，则派生类向基类的类型转换也是可访问的；反之
+不行。
+关键概念:类的设计与受保的成员
+	不考虑继承的话，我们可以认为以一个类有两种不同的用户：普通用户和类的实现者。其中，普通用户编写的代码
+使用类的对象，这部分代码只能访问类的公有(接口)成员；实现者则负责编写类的成员函数和友元的代码，成员函数和
+友元既能访问类的公有部分，也能访问类的私有(实现)部分。
+	如果进一步考虑继承的话就会出现第三种用户，即派生类。基类把它希望派生类能够使用的部分声明成受保护的。普
+通用户不能访问受保护的成员，而派生类及其友元仍旧不能访问私有成员。(但是在基类中的成员函数和友元是可以访
+问的)。
+	和其他类一样，基类应该将其接口成员声明为公有的；同时将属于其实现的部分分成两组:一组可供派生类访问，另
+一组只能由基类及基类的友元访问。对于前者应该声明成为受保护的，这样派生类就能在实现自己的功能时使用基类的这
+些数据和操作；对于后者应该声明为私有的。
+也就是说:
+	基类的成员函数和友元函数是对基类的所有的公有、私有、受保护成员都是可访问的；但是用户对于基类的公有的
+成员才可访问，基类的私有、受保护成员是不可被基类的用户所访问的。
+	基类的派生类的成员函数和友元函数对于基类的公有成员和受保护的成员是可访问的，但是对于基类的私有成员是
+不可访问的。派生类的用户对基类的访问得看派生类继承说明符，如果是公有继承的话，那么只能访问原先基类中的公
+有成员，如果是私有继承和保护继承则派生类的用户是不可以访问的！
+
+友元与继承
+	就像友元关系不能传递一样，友元关系同时也不能继承。基类的友元在访问派生类的成员时不具有特殊性，类似的，
+派生类的友元也不能随意的访问基类的成员:
+		class Base{
+			//添加friend声明，其他成员与之前的版本一致
+			friend class Pal;		//Pal在访问Base的派生类时不具有特殊性
+		};
+		class Pal{
+		public:
+			int f(Base b){return b.prot_mem;}		//正确:Pal是Base的友元
+			int f2(Sneaky s){return s.j;}		//错误:Pal不是Sneaky的友元
+			//对基类的访问权限由基类本身控制，即使对于派生类的基类部分也是如此
+			int f3(Sneaky s){return s.prot_mem;}		//正确:Pal是Base的友元
+		};
+如前所述，每个类负责控制自己的成员的访问权限，因此尽管看起来有点奇怪，但f3确实是正确的。Pal是Base的友元，
+所以Pal能够访问Base对象的成员，这种可访问性包括了Base对象内嵌套在其派生类对象中的情况。
+	当一个类将另一个类声明为友元时，这种友元关系只对做出声明的类有效。对于原来那个类来说，其友元的基类或者
+派生类不具有特殊的访问能力:
+		//D2对Base的protected和private成员不具有特殊的访问能力
+		class D2 : public Pal{
+		public:
+				int mem(Base b){
+					return b.prot_mem;}//错误:友元关系不能继承
+		};
+注意:
+	不能继承友元关系，每个类负责控制各自成员的访问权限
+小结下：
+	关于友元的，首先友元不能继承，也就是说，如果一个基类是另一个类的友元类，那么该基类的派生类是不能够继承
+过来这种友元关系的。但是如果一个类A是另一个类B的友元，但是这个类A却可以访问另一个类B的派生类C中的关于B的成
+员！！但是A也仅仅访问C中的B的成员，却不能访问C中自己的成员。
+
+改变个别成员的可访问性
+	有时我们需要改变派生类继承的某个名字的访问级别，通过使用using声明可以达到这一目的:
+		class Base{
+		public:
+			std::size_t size() const { return n;}
+		protected:
+			std::size_t n;
+		};
+		class Dervied : private Base{
+		public:
+			//保持对象尺寸相关的成员的访问级别
+			using Base::size;
+		protected:
+			using Base::n;
+		};
+因为Derived使用了私有继承，所以继承而来的成员size和n(在默认情况下)是Derived的私有成员。然而，我们使用
+using声明语句改变了这些成员的可访问性。改变之后，Dervied的用户将可以使用size成员，而Derived的派生类将
+能使用n。
+	通过在类的内部使用using声明语句，我们可以将该类的直接或间接基类中的任何可访问成员(例如，非私有成员)标
+记出来。using声明语句中名字的访问权限由该using声明语句之前的访问说明符来决定。也就是说，如果一条using声
+明语句出现在类的private部分，则该名字只能被类的成员和友元访问；如果using声明语句位于protected部分，则
+该名字对于成员、友元和派生类是可访问的。
+注意:
+	这里的using只能改变的是可访问的成员。也就是在派生类中可以访问的对象就只有public和protected。所以
+使用using可以去访问它。比方说，你的基类中的public，protected都可以在派生类成员函数和友元函数中使用。
+如果你的派生类的继承方式是private的话，那么所有的基类成员函数对于派生类的用户来说都是私有的了。但是派生
+类的成员函数和友元函数来说，基类的成员的访问权限不变。所以在这种情况下，使用using可以改变派生类对象对于
+继承过来的基类的成员的访问权限。比如说,A类继承B类，是通过private继承过来的，那么A类的对象就不能
+访问B中原先的公有的成员。但是如果在A类的public中使用using声明，这样A的对象就可以使用B中原先的public
+成员了。同理如果在private部分声明using，那么该基类中的成员函数只能被派生类使用了(这个成员函数是A可访问的)。
+如果你的可访问的成员函数在protected部分被声明，那么这些原先被访问的成员只能被派生类的成员函数，友元以及
+派生类使用了。
+
+注意:
+	派生类只能为那些它可以访问的名字提供using声明
+
+默认的继承保护级别
+	在7.2节中我们曾经介绍过使用struct和class关键字定义的类具有不同的默认访问说明符。类似的，默认派生类运
+算符也由定义派生类用的关键字来决定。默认情况下，使用class关键字是定义的派生类私有继承的；而使用struct关
+键字定义的派生类是公有继承的:
+		class Base{/*....*/};
+		struct D1 : Base {/*....*/};	//默认public继承
+		class D2 : Base{/*....*/};		//默认private继承
+人们常有一种错觉，认为在使用struct关键字和class关键字定义的类之间还有更深层次的差别。事实上，唯一的差别
+就是默认成员访问说明符以及默认派生类访问说明符。除此之外，再无其他不同之处。
+注意:
+	一个私有派生的类最好显示地将private声明出来，而不要仅仅依赖于默认的设置。显示声明的好处是可以令私有
+继承关系清晰明了，不至于产生误会。
+
+15.6	继承中的类的作用域
+	每个类定义自己的作用域，在这个作用域内我们定义类的成员。当存在继承关系时，派生类的作用嵌套在其基类的作
+用域中。如果有一个名字在派生类的作用域内无法正确解析，则编译器将继续在外层的基类作用域中寻找该名字的定义。
+	派生类的作用域位于基类作用域之内这一事实可能有点出乎意外，毕竟在我们的程序文本中派生类和基类的定义是
+相互分离开来的。不过也恰恰因为类作用域有这种继承嵌套的关系，所以派生类才能像使用自己的成员一样使用基类的
+成员。例如，当我们编写下面的代码时:
+		Bulk_quote bulk;
+		cout<<bulk.isbn();
+名字isbn的解析将按照下述过程所示:
+		>>>	因为我们是通过Bulk_quote的对象调用isbn的，所以首先在Bulk_quote中查找，这一步没找到名
+字ibsn。
+		>>>	因为Bulk_quote是Disc_quote的派生类，所以接下来在Disc_quote中查找，仍然找不到。
+		>>>	因为Disc_quote是Quote的派生类，所以接着查找Quote；此时找到了名字isbn，所以我们使用
+的isbn最终被解析为Quote中的isbn。
+
+在编译时进行名字查找
+	一个对象、引用或指针的静态类型决定了该对象的哪些成员是可见的。即使静态类型与动态类型可能不一致(
+当使用基类的引用或指针时会发生这种情况)，但是我们能使用哪些成员仍然是由静态决定的。举个例子，我们可以
+给Disc_quote添加一个新成员，该成员返回一个存有最小(或最大)数量及折扣价格的pair:
+		class Disc_quote:public Quote{
+		public:
+			std::pair<size_t,double>discoutnt_policy()const
+			{
+				return {quantity,discount};
+			}
+			//其他成员与之前的版本一致。
+		};
+我们只能通过Disc_quote及其派生类的对象、引用或指针使用discount_policy:
+		Bulk_quote bulk;
+		Bulk_quote *bulkP = &bulk;		//静态类型与动态类型一致
+		Quote *itemP = &bulk;		//静态类型与动态类型不一致
+		bulkP->discount_policy();	//正确:bulkP的类型是Bulk_quote *
+		itemP->discount_policy();	//错误:itemP的类型是Quote *，不能调用派生类中非基类的成员
+尽管在bulk中确实含有一个名为discount_policy的成员，但是该成员对于itemP却是不可见的。itemP的类型是
+Quote的指针，意味着对discount_policy的搜索将从Quote开始。显然Quote不含名为discount_policy的成员。
+所以我们无法通过Quote的对象，引用或指针调用discount_policy。
+
+名字冲突与继承
+	和其他作用域一样，派生类也能重用定义在其直接基类或间接基类中的名字。此时定义在内层作用域中(即派生类)
+的名字将隐藏定义在外层作用域(即基类)的名字:
+		struct Base{
+			Base():mem(0){}
+		protected:
+			int mem;
+		};
+		struct Derived : Base{
+			Derived(int i):mem(i){}
+			int get_mem(){return mem;}		//
+		protected:
+			int mem;		//隐藏基类中的mem
+		};
+get_mem中mem引用的解析结果是定义在Dervied中的名字，下面的代码:
+		Derived d(42);
+		cout<<d.get_mem() <<endl;		//打印42
+的输出结果将是42
+注意:
+	派生类的成员将隐藏同名的基类成员
+
+通过作用域运算符来使用隐藏的成员
+	我们可以通过作用域运算符来使用一个被隐藏的基类成员:
+		struct Dervied : Base{
+			int get_base_mem(){return Base::mem;}
+			//....
+		};
+作用域运算符将覆盖掉原有的查找规则，并指示编译器从Base类的作用域内开始查找mem。如果使用最新的Derived版本
+运行上面的代码，则d.get_base_mem()的输出结果将是0。
+注意:
+	除了覆盖继承而来的虚函数之外，派生类最好不要重用其他定义在基类中的名字。
+
+关键概念:名字查找由与继承
+	理解函数调用的解析过程对于理解C++的继承至关重要，假定我们调用p->mem()(或者obj.mem())，则依次执行
+以下4个步骤:
+		>>>	首先确定p(或obj)的静态类型。因为我们调用的是一个成员，所以该类型必然是类类型
+		>>>	在p(或obj)的静态类型对应的类中查找mem。如果找不到，则依次在直接基类中不断查找直至到达继承
+链的顶端。如果找遍了该类及其基类仍然找不到，则编译器将报错
+		>>>	一旦找到了mem，就进行常规的类型检查以确认对应于当前找到的mem，本次调用是否合法
+		>>>	假设合法，则　编译器将根据调用的是否是虚函数而产生不同的代码:
+			---如果mem是虚函数且我们是通过引用或指针进行的调用，则编译器产生的代码将在进行时确定到底
+进行该虚函数的那个版本，依据是对象的动态类型
+			---反之，如果mem不是虚函数或者我们是通过对象(而非指针或引用)进行的调用，则编译器将产生一
+个常规函数调用。
+
+一如往常，名字查找优先于类型检查
+	如前所述，声明在内层作用域的函数不会重载声明在外层作用域的函数(只要不一样就当做是派生类中的新成员)。
+因此,定义派生类中的函数也不会重载其基类中的成员。和其他作域一样，如果派生类(即内层作用域)的成员与基类
+(即外层作用域某个成员同名，则派生类将在其作用域内隐藏该基类成员，即使派生类成员和基类成员的形参列表不
+一致，基类成员也仍然会被隐藏掉:
+		struct Base{
+			int memfcn();
+		};
+		struct Dervied : Base{
+			int memfcn(int);		//隐藏基类的memfcn
+		};
+		Derived d;Base b;
+		b.memfcn();		//调用Base::memfcn
+		d.memfcn(10)	//调用Derived::memfcn
+		d.memfcn();		//错误:参数列表为空的memfcn被隐藏了
+		d.Base::memfcn();//正确:调用Base::memfcn
+Derived中的memfcn声明隐藏了Base中的memfcn声明。在上面的代码中前两条调用语句容易理解，第一个通过Base
+对象b进行调用执行基类的版本；类似的，第二个通过d进行的调用执行Derived的版本；第三条调用语句有点特殊，
+d.memfcn()是非法的。因为Derived中的memfcn和Base中的memfcn重名了，所以被Derived中的memfcn()给
+覆盖掉了。
+	为了解析这条语句,编译器首先在Dervied中查找名字memfcn；因为Derived确实定义了一个名为memfcn的成
+员，所以查找过程终止。一旦名字找到，编译器就不再继续查找了。Derived中的memfcn版本需要一个int实参，
+而当前的调用语句无法提供任何实参，所以该调用语句是错误的。
+
+虚函数与作用域
+	我们现在可以理解为什么基类与派生类中的虚函数必须有相同的形参列表了。假如基类与派生类的虚函数接受的实
+参不同，则我们就无法通过基类的引用或指针调用派生类的虚函数了。例如:
+		class Base{
+		public:
+			virtual int fcn();
+		};
+		class D1 : public Base{
+		public:
+			//隐藏基类的fcn，这个fcn不是虚函数
+			//D1继承了Base::fcn()的定义
+			int fcn(int);		//形参列表与Base中的fcn不一致
+			virtual void f2();	//是一个新的虚函数，在Base中不存在
+		};
+		class D2 : public D1{
+		public:
+			int fcn(int);		//是一个非虚函数，隐藏了D1::fcn(int)
+			int fcn();			//覆盖了Base的虚函数fcn
+			void f2();			//覆盖了D1的虚函数f2
+		};
+D1的fcn函数并没有覆盖Base的虚函数fcn，原因是它们的形参列表不同。实际上，D1的fcn将隐藏Base的fcn。
+此时拥有了两个名为fcn的函数:一个是D1从Base继承而来的虚函数，另一个是D1自己定义的接受一个int参数非
+虚函数fcn。
+
+通过基类调用隐藏的虚函数
+	给定上面定义的这些类后，我们来看几种使用其他函数的方法:
+		Base bobj;D1 d1obj;D2 d2obj;
+		Base *bp1 = &bobj,*bp2 = &d1obj,*bp3=&d2obj;
+		bp1->fcn();			//虚调用，将在运行时调用Base::fcn()
+		bp2->fcn();			//虚调用，将在运行时调用Base::fcn()
+		bp3->fcn();			//虚调用，将在运行时调用D2::fcn()
+		D1 *d1p = &d1obj;D2 *d2p = &d2obj;
+		bp2->f2();			//错误，Base没有名为f2的成员
+		d1p->f2();			//虚调用，将在运行时调用D1::f2()
+		d2p->f2();			//虚调用，将在运行时调用D2::f2()
+前三条调用语句是通过基类的指针进行的，因为fcn是虚函数，所以编译器产生的代码将在运行时确定使用虚函数的
+哪个版本。判断的依据是该指针所绑定对象的真实类型。在bp2的例子中，实际绑定的对象是D1类型，而D1并没有
+覆盖那个不接受实参的fcn，所以通过bp2进行的调用将在运行时解析为Base定义的版本。
+	接下来的三条调用语句是通过不同类的的指针进行的，每个指针分别指向继承体系中的一个类型。因为Base类中
+没有f2()，所以第一条语句是非法的，即使当前的指针碰巧指向了一个派生类对象也无济于事。
+	为了完整地阐明上述问题，我们不妨再观察一些对于非虚函数fcn(int)的调用语句:
+		Base *p1 = &d2obj;D1 *p2 = &d2obj;D2 *p3 = &d2obj;
+		p1->fcn(42);		//错误:Base中没有接受一个int的fcn
+		p2->fcn(42);		//静态绑定:调用D1::fcn(int)
+		p3->fcn(42);		//静态绑定:调用D2::fcn(int)
+在上面的每条调用语句中，指针都指向了D2类型的对象，但是由于我们调用的是非虚函数，所以不会发生动态绑定。
+实际调用的函数版本由指针是静态类型决定的。
+注意:
+	其实如果在派生类中没有写上与基类的虚函数一模一样的形参的话，那么基类的虚函数就被屏蔽了，但是派生
+类中的相对应的那个函数，就是一个普通的函数了，而不是一个虚函数！！！
+
+覆盖重载的函数
+	和其他函数一样，成员函数无论是否是虚函数能被重载。派生类可以覆盖重载函数的0个或多个实例。如果派生
+类希望所有的重载版本对于它来说都是可见的，那么它就需要覆盖所有的版本，或者一个也不覆盖。
+	有时一个类仅需要覆盖重载集合中的一些而非全部函数，此时，如果我们不得不覆盖基类中的每一个版本的话，
+显然操作就极其繁琐。
+	一种好的解决方法是为重载的成员提供一条using声明语句，这样我们就无须覆盖基类中的每一个重载版本了。
+using声明语句指定一个名字而不指定形参列表，所以一条基类成员函数的using声明语句就可以把该函数的是所有
+重载实例添加到派生类作用域中。此时，派生类只需要定义其特有的函数就可以了，而无须为继承而来的其他函数重
+新定义。
+	类内using声明的一般规则同样适用于重载函数的名字:基类函数的每个实例在派生类中都必须是可访问的。对
+派生类没有重新定义的重载版本的访问实际上是对using声明点的访问。
+
+15.7.1	虚析构函数
+	继承关系对基类拷贝最直接的影响是基类通常应该定义一个虚析构函数。这样我们就能动态分配继承体系中的
+对象了。
+	如前所述，当我们delete一个动态分配的对象的指针时将执行析构函数。如果该指针指向继承体系中的某个类
+型，则有可能出现指针的静态类型与被删除的动态类型不符的情况。例如，如果我们delete一个Quote *类型的
+指针，则该指针有可能实际指向了一个Bulk_quote类型的对象。如果这样的话，编译器就必须清楚它应该执行的是
+Bulk_quote的析构函数，和其他函数一样，我们通过在基类中将析构函数定义成虚函数以确保执行正确的析构函数
+版本。
+		class Quote{
+		public:
+			//如果我们删除的是一个指向派生类对象的基类指针，则需要析构函数
+			virtual ~Quote() = default;	//动态绑定析构函数　
+		};
+和其他虚函数一样，析构函数的虚属性也会被继承。因此，无论Quote的派生类使用合成的析构函数还是定义自己的
+析构函数，都将是虚析构函数。只要基类的析构函数是虚函数，就能确保当我们delete基类指针时运行正确的析构
+函数版本:
+		Quote *itemP = new Quote;	//将静态类型与动态类型一致
+		delete itemP;			//调用Quote的析构函数
+		itemP = new Bulk_quote;	//静态类型和动态类型不一致
+		delete itemP;		//调用Bulk_quote的析构函数
+注意:
+	如果基类的析构函数不是虚函数，则delete一个指向派生类对象的基类指针将产生未定义的行为。
+之前我们曾介绍过一条经验准则，即如果一个类需要析构函数，那么它也同样需要拷贝和赋值操作。基类的析构函数
+并不遵循上述准则，它是一个重要的例外。一个基类总是需要析构函数，而且它能将析构函数设定为虚函数。此时，
+该析构函数为了虚函数而令内容为空，我们显然无法由此推断该基类还需要赋值运算符或拷贝构造函数。
+
+虚析构函数将阻止合成移动操作
+	基类需要一个虚析构函数这一事实还会对基类和派生类的定义产生另外一个间接的影响：如果一个类定义了析
+构函数，即使它通过=default的形式使用了合成的版本，编译器也不会为这个类合成移动操作。
+
+15.7.2	合成拷贝控制与继承
+	基类或派生类的合成拷贝控制成员的行为与其他合成的构造函数、赋值运算符或析构函数类似：他们对类本身
+的成员依次进行初始化、赋值或销毁操作。此外，这些合成的成员还负责使用直接基类中对应的操作对一个对象的直
+接基类部分进行初始化、赋值或销毁的操作。例如:
+		>>>	合成的Bulk_quote默认的构造函数运行Disc_quote的默认构造函数，后者又运行Quote的默认
+构造函数
+		>>>	Quote的默认构造函数将bookNo成员默认初始化为空字符串，同时使用类内初始值将price初始化
+为0。
+		>>>	Quote的构造函数完成后，继续执行Disc_quote的构造函数，它使用类内初值初始化qty和discount
+		>>>	Disc_quote的构造函数完成后，继续执行Bulk_quote的构造函数，但是它什么具体
+工作也不做。
+类似的，合成的Bulk_quote拷贝构造函数使用(合成的)Disc_quote拷贝构造函数，后者又使用(合成的)Quote
+拷贝构造函数。其中，Quote拷贝构造函数拷贝bookNo和price成员；Disc_quote拷贝构造函数拷贝qty和discount
+成员
+	值得注意的是，无论基类成员还是合成的版本(如Quote继承体系的例子)还是自己定义的版本都没有太大的影响。
+唯一的要求是相应的成员应该可访问并且不是一个被删除的函数。在我们的Quote继承体系中，所有类都使用合成的析
+构函数。其中，派生类隐式地使用而基类通过将其虚析构函数定义成=default而显示地使用。一如既往，合成的
+析构函数体是空的，其隐式的析构部分负责销毁类的成员。对于派生类的析构函数来说，他除了销毁派生类自己的成员
+外，还负责销毁派生类的直接基类，该直接基类又销毁了它自己的直接基类，依次类推直至继承链的顶端。
+	如前所述，Quote因为定义了析构函数而不能拥有合成的移动操作，因此当我们移动Quote对象时实际使用的
+是合成的拷贝操作。如我们即将看到的那样，Quote没有移动操作意味着它的派生类也没有。
+
+派生类中删除的拷贝控制与基类的关系
+	就像其他任何类的情况一样，基类或派生类也能出于同样的原因将其合成的默认构造函数或者任何一个拷贝控制
+成员定义成被删除的函数。此外，某些定义基类的方式也可能导致有的派生类成员成为被删除的函数:
+		>>>	如果基类中的默认构造函数、拷贝构造函数、拷贝赋值运算符或析构函数是被删除的函数或者不可访
+问，则派生类中对应的成员将是被删除的，原因是编译器不能使用基类成员来执行派生类对象基类部分的构造、赋值或
+销毁操作
+		>>>	如果在基类中有一个不可访问或删除掉的析构函数，则派生类中合成的默认和拷贝构造函数将是被删
+除的，因为编译器无法销毁派生类对象的基类部分。
+		>>>	和过去一样，编译器将不会合成一个删除掉的移动操作。当我们使用=default请求一个移动操作
+时，如果基类中的对应操作是删除的或不可访问的，那么派生类中该函数将是被删除的，原因是派生类对象的基类部分
+不可移动。同样，如果基类的析构函数是删除的或不可访问的，则派生类的移动构造函数也将是被删的。
+举个例子，对应于下面的基类B来说:
+		class B{
+		public:
+			B();
+			B(const B&) = default;
+			//其他成员，不含有移动构造函数
+		};
+		class D : public B{
+			//没有声明任何构造函数
+		};
+		D d;		//正确:D的合成默认构造函数使用B的默认构造函数
+		D d2(d);	//错误:D的合成拷贝构造函数是被删除的
+		D d3(std::move(d));	//错误:隐式地使用D的被删除的拷贝构造函数
+基类B含有一个可访问的默认构造函数和一个显示删除的拷贝构造函数。因为我们定义了拷贝构造函数，所以编译器将
+不会为B合成一个移动构造函数。因此我们既不能移动也不能拷贝B的对象。如果B的派生类希望它自己的对象能被移动
+和拷贝，则派生类需要自定义相应版本的构造函数。当然，在这一过程中派生类还必须考虑如何移动或拷贝基类的部分
+成员。在实际编程过程中，如果在基类中没有默认、拷贝或移动构造函数，则一般情况下派生类也不会定义相应的操作。
+
+移动操作与继承
+	如前所述，大多数基类都会定义一个虚析构函数。因此在默认情况下，基类通常不含有合成的移动操作，而且在它
+的派生类中也没有合成的移动操作。
+	因为基类缺少移动操作会阻止派生类拥有自己的合成移动操作，所以当我们确实需要执行移动操作时应该首先在基
+类中进行定义。我们的Quote可以使用合成的版本，不过前提是必须显示地定义这些成员。一旦Quote定义了自己的移
+动操作，那么它必须同时显示地定义拷贝操作。
+		class Quote{
+		public:
+			Quote() = default;	//队成员依次进行默认初始化
+			Quote(const Quote&) = default;//对成员依次拷贝
+			Quote(Quote &&) = default;//对成员依次移动
+			Quote &operator=(const Quote&)=default;//对成员拷贝赋值
+			Quote &operator=(Quote &&)=default;//对成员移动赋值
+			virtual ~Quote()=default;
+			//其他成员与之前的版本一致
+		};
+通过上面的定义，我们就能对Quote的对象逐成员地分别进行拷贝、移动、赋值和销毁操作了。而且除非Quote的派生
+类中含有排斥移动的成员，否则他将自动获得合成的移动操作。
+
+15.7.3	派生类的拷贝控制成员
+	如我们在15.2.2节介绍过的，派生类构造函数在其初始化阶段中不但要初始化类自己的成员，还负责初始化派生
+类对象的基类部分。因此，派生类的拷贝和移动构造函数在拷贝和移动自有成员的同时，也要拷贝和移动基类的部分成
+员。类似的，派生类赋值运算符也必须为其基类部分的成员赋值。
+	和构造函数以及赋值运算符不同的是，析构函数只负责销毁派生类自己分配的资源，如前所述，对象的成员是被隐
+式销毁的：类似的，派生类对象的基类部分也是自动销毁的。
+注意:
+	当派生类定义了拷贝或移动操作时，该操作负责拷贝或移动包括基类部分成员在内的整个对象。
+
+定义派生类的拷贝或移动构造函数
+	当为派生类定义拷贝或移动构造函数时，我们通常使用对应的基类构造函数初始化对象的基类部分:
+		class Base {/*...*/};
+		class D : public Base{
+		public:
+			//默认情况下，基类的默认构造函数初始化对象的基类部分
+			//要想使用拷贝或移动构造函数，我们必须在构造函数初始值列表中
+			//显示地调用该构造函数
+			D(const D	&d):Base(d)	//拷贝基类成员
+					/*D的成员的初始值*/{/*...*/}
+			D(D  &&d):Base(std::move(d))//移动基类成员
+					/*D的成员的初始值*/{/*...*/}
+		};
+初始值Base(d)将一个D对象传递给基类的构造函数。尽管从道理上来说，Base可以包含一个参数类型为D的构造
+函数，但是在实际编程过程中通常不会这么做。相反，Base(d)一般会匹配Base的拷贝构造函数。D类型的对象b
+将被绑定到该构造函数的Base &形参上。Base的拷贝构造函数负责将d的基类部分拷贝到要创建的对象。假如我们
+没有提供基类的初始值的话:
+		//D的这个拷贝构造函数可能是不正确的定义
+		//基类部分被默认初始化，而非拷贝
+		D(const D &d)/*成员初始值，但是没有提供基类初始值*/
+		{/*....*/}
+在上面的例子中，Base的默认构造函数将被用来初始化D对象的基类部分，假定D的构造函数从d中拷贝了派生类
+成员，则这个新构建的对象的配置将非常奇怪：它的Base成员被赋予了默认值，而D成员的值则是从其他对象拷贝
+得来的。
+注意:
+	在默认情况下，基类默认的构造函数初始化派生类对象的基类部分。如果我们想拷贝(或移动)基类部分，
+则必须在派生类的构造函数初始值列表中显示地使用基类的拷贝(或移动)构造函数。
+
+派生类赋值运算符
+	与拷贝和移动构造函数一样，派生类的赋值运算符也必须显示地为其基类部分赋值:
+		//Base::operator=(const Base &)不会被自动调用
+		D &D::operator=(const D  &rhs)
+		{
+			Base::operator=(rhs);	//为基类部分赋值
+			//按照过去的方式为派生类的成员赋值
+			//酌情处理自赋值及释放已有资源等情况
+			return *this;
+		}
+上面的运算符首先显示地调用基类赋值运算符，令其为派生类对象的基类部分赋值。基类的运算符(应该可以)正确
+地处理自赋值的情况，如果赋值命令是正确的，则基类运算符将释放掉其左侧运算对象的基类部分的旧值。然后利
+用rhs为其赋值一个新值。随后，我们继续进行其他为派生类成员赋值的工作。
+	值得注意的是，无论基类的构造函数或赋值运算符是自定义的版本还是合成的版本，派生类的对应操作都能使
+用它们。例如，对于Base::operator=调用语句将执行Base的拷贝赋值运算符，至于该运算符是由Base显示定义
+还是由编译器合成的无关紧要。
+
+派生类析构函数
+	如前所述，在析构函数体执行完成后，对象的成员会被隐式销毁。类似的，对象的基类部分也是隐式销毁的。
+因此和构造函数及赋值运算符不同的是，派生类析构函数只负责销毁由派生类自己分配的资源:
+		class D : public Base{
+		public:
+			//Base::~Base被自动调用执行
+			~D(){/*该处由用户定义清除派生类成员的操作*/}
+		};
+对象销毁的顺序正好与其创建的顺序相反:派生类析构函数首先执行，然后是基类的析构函数，依次类推，沿着继
+承体系的反方向直至最后。
+
+在构造函数和析构函数中调用虚函数
+	如我们所知，派生类对象的基类部分将首先被创建。当执行基类的构造函数时，该对象的派生类部分是未被初
+始化的状态。类似的，销毁派生类对象的次序正好相反，因此当执行基类的析构函数时，派生类部分已经被销毁了。
+由此可知，当我们执行上述基类成员的时候，该对象处于未完成的状态。
+	为了能够正确地处理这种未完成状态。编译器认为对象的类型在构造或析构的过程中仿佛发生了改变一样。也就
+是说，当我们构建一个对象时，需要把对象的类和构造函数的类看作是同一个；对虚函数的调用绑定正好符合这种把
+对象的类和构造函数的类看成同一个的要求；对于析构函数也是同样的道理。上述的绑定不但对直接调用虚函数有效，
+对间接调用也有效的，这里的间接调用是指通过构造函数(或析构函数)调用另一个函数。
+	为了理解上述的行为，不妨考虑当基类构造函数调用虚函数的派生类版本时会发生什么情况。这个虚函数可能会
+访问派生类的成员，毕竟，如果它不需要访问派生类成员的话，则派生类直接使用基类的虚函数版本就可以了。然而，
+当执行基类构造函数时，它要用到的派生类成员尚未初始化，如果我们允许这样也的话，则程序很可能会崩溃。
+注意:
+	如果构造函数或析构函数调用了某个虚函数，则我们应该执行与构造函数或析构函数所属类型对应的虚函数
+版本。
+也就是说，在构造函数或析构函数中调用的虚函数应该是该构造函数/析构函数对应的类的虚函数，而不是其他派
+生类的虚函数。这个时候应该讲究的是静态类型和动态类型是一样的。
+
+15.7.4	继承的构造函数
+	在C++11新标准中，派生类能够重用其直接基类定义的构造函数。尽管如我们所知，这些构造函数并非以常
+规的方式继承而来的。但是为了方便，我们不妨姑且称其为"继承"的。一个类只初始化它的直接基类，出于同样
+的原因，一个类也只继承其直接基类的构造函数。类不能继承默认、拷贝和移动构造函数。如果派生类没有直接
+定义这些构造函数，则编译器将为派生类合成它们。
+	派生类继承基类的构造函数的方式是提供了一条注明了(直接)基类名的using声明语句。举个例子，我们可
+以重新定义Bulk_quote类，令其继承Disc_quote类的构造函数:
+		class Bulk_quote : public Disc_quote{
+		public:
+			using Disc_quote::Disc_quote;	//继承Disc_quote的构造函数
+			double net_price(std::size_t)const;
+		};
+通常情况下，using声明语句只是令某个名字在当前作用域内可见。而当作用于构造函数时，using声明语句将
+令编译器产生代码。对于基类的每个构造函数，编译器都生成有一个与之对应的派生类构造函数。换句话说，对
+于基类的每个构造函数，编译器都在派生类中生成一个形参列表完全相同的构造函数。
+	这些编译器生成的构造函数形如:
+		derived(parms) : base(args){}
+其中，derived是派生类的名字，base是基类的名字，parms是构造函数的形参列表，args将派生类构造函数的
+形参传递给基类的构造函数。在我们的Bulk_quote类中，继承的构造函数等价于:
+		Bulk_quote(const std::string &book,double price,std::size_t qty,
+					double disc):Disc_qoute(book,price,qty,disc){}
+如果派生类含有自己的数据成员，则这些成员将被默认初始化。
+小结下:
+	这里的继承的构造函数，其实我现在目前的理解是，可以不用去在派生类定义一个构造函数来显示的使用基类的
+构造函数去初始化基类的成员。直接继承过来，编译器自动给你生成派生类的构造函数，然后去显示调用该基类被继
+承过来的构造函数。但是派生类的自己的成员则被默认初始化。
+
+继承的构造函数的特点
+	和普通成员using声明不一样，一个构造函数的using声明不会改变该构造函数的访问级别。例如，不管using
+声明出现在哪，基类的私有构造函数在派生类中还是一个私有构造函数；受保护的构造函数和公有构造函数也是同
+样的规则。
+	而且，一个using声明语句不能指定explicit或constexpr。如果基类的构造函数是explicit或constexpr，
+则继承的构造函数也拥有相同的属性。
+	当一个基类构造函数含有默认实参时，这些实参并不会被继承。相反，派生类将获得多个继承的构造函数，其中
+每个构造函数分别省略掉一个含有默认实参的形参。例如，如果基类有一个接受两个形参的构造函数，其中的第二个
+形参含有默认实参，则派生类将获得两个构造函数：一个构造函数接受两个形参(没有默认实参)，另一个构造函数只
+接受一个形参，它对应于基类中最左侧的没有默认值的形参。
+	如果基类含有几个构造函数，则除了两个例外情况，大多数时候派生类会继承所有这些构造函数。第一个例外是
+派生类可以继承一部分构造函数，而为其他构造函数定义自己的版本。如果派生类定义的构造函数与基类的构造函数
+具有相同的参数列表，则该构造函数将不会被继承。定义在派生类中的构造函数将替换继承而来的构造函数。
+	第二个例外是默认、拷贝和移动构造函数不会被继承。这些构造函数按正常规则被合成。继承的构造函数不会被
+作为用户定义的构造函数来使用，因此，如果以一个类只含有继承的构造函数，则它也将拥有一个合成的默认构造函数。
+注意:
+	类不会继承默认、拷贝和移动构造函数，编译器会为派生类合成他们。
+
+15.8	容器与继承
+	当我们使用容器存放继承体系中的对象时，通常必须采取间接存储的方式。因为不允许在容器中保存不同类型的元
+素，所以我们不能把具有继承关系的多种类型的对象直接存放在容器当中。
+	举个例子，假定我们想定义了一个vector，令其保存用户准备购买的几种书籍。显然，我们不应该用vector保存
+Bulk_quote对象。因为我们不能将Quote对象转换为Bulk_quote，所以我们将无法把Quote对象放置在该vector中。
+	其实，我们也不应该使用vector保存Quote对象。此时，虽然我们可以把Bulk_quote对象放置在容器中，但是
+这些对象再也不是Bulk_quote对象了:
+		vector<Quote> basket;
+		basket.push_back(Quote("0-201-82470-1",50);
+		//正确:但是只能把对象的Quote部分拷贝给basket
+		basket.push_back(Bulk_quote("0-201-54848-8",50,10,.25);
+		//调用Quote定义的版本，打印750,即15*$50
+		cout<<basket.back().net_price(15)<<endl;
+basket的元素是Quote对象，因此当我们向该vector中添加一个Bulk_quote对象时，它的派生类部分将被忽
+略掉。
+注意:
+	当派生类对象被赋值给基类对象时，其中的派生类部分将被"切掉"，因此容器和存在继承关系的类型无法兼容。
+
+在容器中放置(智能)指针而非对象
+	当我们希望在容器中存放具有继承关系的对象时，我们实际上存放的通常是基类的指针(更好的选择是智能指针)。
+和往常一样，这些指针所指对象的动态类型可能是基类类型，也可能是派生类类型:
+		vector<shared_ptr<Quote>> basket;
+		basket.push_back(make_shared<Quote>("0-201-82470-1",50);
+		basket.push_back(make_shared<Bulk_quote>("0-201-54848-8",50,10,.25);
+		//调用Quote定义的版本:打印562.5即在15*50中扣除掉折扣金额
+		cout<<basket.back()->net_price(15)<<endl;
+因为basket存放着shared_ptr，所以我们必须解引用basket.back()的返回值以获得运行net_price的对象。
+我们通过在net_price的调用中使用->以达到这个目的。如我们所知，实际调用的net_price版本依赖于指针所指
+对象的动态类型。
+	值得注意的是，我们将在basket定义成shared_ptr<Quote>，但是在第二个push_back中传入的是一个
+Bulk_quote对象的shared_ptr，正如我们可以将一个派生类指针转换成基类指针一样，我们也能把一个派生类
+的智能指针转换成基类的智能指针。在此例中，make_shared<Bulk_quote>返回一个shared_ptr<Bulk_quote>对象，当我们调用push_back时该对象被转换
+为shared_ptr<Quote>。因此尽管形式上有所差别，但实际上basket的所有元素的类型都是相同的。
+
+15.8.1	编写Basket类
+	对于C++面向对象的编程来说，一个悖论是我们无法直接使用对象进行面向对象编程。相反，我们必须使用指针和
+引用。因为指针会增加程序的复杂性，所以我们经常定义一些辅助的类来处理这种复杂情况。首先，我们定义一个表示
+购物的篮子的类:
+		class Basket{
+		public:
+			//Basket使用合成的默认构造函数和拷贝控制成员
+			void add_item(const std::shared_ptr<Quote> &sale)
+			{
+				item.insert(sale);
+			}
+			//打印每本书的总价和购物篮中所有数的总价
+			double total_recipe(std::ostream &)const;
+		private:
+			//该函数用于比较shared_ptr,multiset成员会使用到它
+			static bool compare(const std::shared_ptr<Quote> &lhs,
+								const std::shared_ptr<Quote> &rhs)
+			{
+				return lhs->isbn() < rhs->isbn();
+			}
+			//multiset保存多个报价，按照compare成员排序
+			std::multiset<std::shared_ptr<Quote>,decltype(compare)*>items(compare);
+		};
+我们的类使用一个multiset来存放交易信息，这样我们就能保存同一本书的多条交易记录，而且对于一本给定的书籍，
+它的所有交易信息都保存在一起。
+	multiset的元素是shared_ptr，因为shared_ptr没有定义小于运算符，所以为了对元素排序我们必须提供
+自己的比较运算符。在此例中，我们定义了一个名为compare的私有静态成员，该成员负责比较shared_ptr所指对
+象的isbn，我们初始化multiset，通过类内初始值比较函数:
+		//multiset保存多个报价，按照compare成员排序
+		std::multiset<std::shared_ptr<Quote>,decltype(compare)*>items(compare);
+这个声明看起来不太容易理解，但是从左到右读的话，我们就能明白它其实定义了一个指向Quote对象的shared_ptr
+的multiset。这个multiset将使用一个与compare成员类型相同的函数来对其中的元素进行排序。multiset成
+员的名字是items，我们初始化items并令其使用我们的compare函数。
+
+定义Basket的成员
+	Basket类只定义两个操作，第一个成员是我们在类的内部定义的add_item成员，该成员接受一个指向动态分
+配的Quote的shared_ptr，然后将这个shared_ptr放置在multiset中，第二个成员的名字是total_recipt,
+它负责将购物蓝的内容逐项打印成清单，然后返回购物蓝中所有物品的总价格:
+		double Basket::total_recipt(ostream &os)const
+		{
+			double sum = 0.0;	//保存实时计算出的总价格
+			//iter指向ISBN相同的一批元素中的第一个
+			//upper_bound返回一个迭代器，该迭代器的是通过大于当前这个元素的初始位置
+			for(auto iter = items.cbegin();iter != items.cend();
+					iter = items.upper_bound(*iter)){
+				//我们知道在当前的Basket中至少有一个该关键字的元素
+				//打印该书籍对应的项目
+				sum += print_total(os,**iter,items.count(*iter));
+			}
+			os<<"Total Sale : "<<sum<<endl;
+			return sum;
+			/*该函数的作用是:它在multiset中存放相应的书籍，但是这个书籍是按照你的
+			isbn来排序的，所以假设multiset中的书籍有book1,book2,book2,book3,book3
+			book3,book4,book4。那么首先介绍一下upper_bound，这个的返回结果是
+			大于你的形参的第一个元素,比方说，你的第一个输入的是book1,那么根据你的
+			定义的compare函数，也就是给multiset定义的大于号。那么返回的结果就是book2
+			的迭代器，同理输入的是book2，那么返回的是book3。这样for循环就可以进行了。
+			那么sum的时候，直接使用count函数来计算有多少book2或者book3之类的
+			*/
+		}
+我们的for循环首先定义并初始化iterr，令其指向multiset的第一个元素。条件部分检查iter是否等于items.cend()；
+如果相等，表明我们已经处理完了所有购买记录，接下来就应该跳出for循环；否则，如果不相等，则继续处理下一本书籍。
+	比较有趣的是，for循环的递增方式。与通常的循环语句依次读取每个元素不同，我们直接令iter指向下一个关键字，
+调用upper_bound函数可以令我们跳过与当前关键字相同的所有元素。对于upper_bound函数来说，它返回的是一个迭
+代器，该迭代器指向所有与iter关键字相等的元素中最后一个元素的下一位置。因此，我们得到的迭代器或者指向集合的
+尾末，或者指向下一本书籍。
+	在for循环内部，我们通过调用print_total来打印购物篮中每本书籍的细节:
+		sum += print_total(os,**iter,items.count(*iter));
+print_total的实参包括一个用于写入数据的ostream、一个待处理的Quote对象和一个计数值。当我们解引用iter
+后将得到一个指向准备打印的对象的shared_ptr。为了得到这个对象，必须解引用该shared_ptr。因此，**iter
+是一个Quote对象(或者Quote的派生的对象)。我们使用multiset的count成员来统计在multiset中有多少元素的
+键值相同(即ISBN相同)。
+	如我们所知,print_total调用了虚函数net_price，因此最终的结算结果依赖于**iter的动态类型。print_total
+函数打印并返回给定书籍的总价格，我们把这个
+结果添加到sum当中，最后当前循环结束后打印sum。
+
+隐藏指针
+	Basket的用户仍然必须处理动态内存，原因是add_item需要接受一个shared_ptr参数。因此，用户不得不
+按照如下形式编写代码:
+		Basket bsk;
+		bsk.add_item(make_shared<Quote>("123",45));
+		bsk.add_item(make_shared<Bulk_quote>("345",45,3,.15));
+我们的下一步是重新定义add_item，使得它接受一个Quote对象而非shared_ptr。新版本的add_item将负责
+处理内存分配，这样它的用户将不必再受困于此了。我们将定义两个版本，一个拷贝它给定的对象，另一个则采取
+移动操作:
+		void add_item(const Quote &sale);	//拷贝给定对象
+		void add_item(Quote &sale);		//移动给定的对象
+唯一的问题是add_item不知道要分配的类型，当add_item进行内存分配时，它将拷贝(或移动)它的sale参数。
+在某处可能会有一条如下形式的new表达式:
+		new Quote(sale);
+不幸的是，这条表达式所做的工作可能是不正确的:new为我们请求的类型分配内存，因此这条表达式将分配一个Quote
+类型的镀锡并且拷贝sale的Quote部分，然而，sale实际指向的可能是Bulk_quote对象，此时，该对象被迫切
+掉一部分。
+
+模拟虚拷贝
+	为了解决上述的问题，我们给Quote类添加一个虚函数，该函数将申请一份当前对象的拷贝:
+		class Quote{
+		public:
+			//该虚函数返回当前对象的一份动态分配的拷贝
+			//这些成员使用的引用限定符参见
+			virtual Quote *clone()const &{return new Quote(*this);}
+			virtual Quote *clone() &&{return new Quote(std::move(*this));}
+			//其他成员与之前的版本一致
+		};
+		class Bulk_quote : public Quote{
+			Bulk_quote *clone()const &{return new Bulk_quote(*this);}
+			Bulk_quote *clone() && {return new Bulk_quote(std::move(*this));}
+			//其他成员与之前的版本一致
+		};
+因为我们拥有add_item的拷贝和移动版本，所以我们分别定义了clone的左值和右值版本。每个clone函
+数分配当前类型的一个新对象，其中，const左值引用成员将它自己拷贝给新分配的对象；右值引用成员则将自
+己移动到新数据中。
+	我们可以使用clone很容易地写出新版本的add_item:
+		class Basket{
+		public:
+			void add_item(const Quote &sale)//拷贝给定的对象
+			{
+				items.insert(std::shared_ptr<Quote>(sale.clone()));
+			}
+			void add_item(Quote &&sale){
+				items.insert(std::shared_ptr<Quote>(std::move(sale).clone()));
+			}
+			//其它成员与之前的版本一致
+		};
+和add_item本身一样，clone函数也根据作用于左值还是右值而分为不同的重载版本。在此例中，第一个add_item
+函数调用clone的const左值版本，第二个函数调用clone的右值引用版本。在右值版本中，尽管sale的类型是右值
+引用类型，但实际上sale本身(和任何其他变量一样)是个左值，因此，我们调用move把一个右值引用绑定到sale上。
+	我们的clone函数也是一个虚函数。sale的动态类型(通常)绝定了到底运行Quote的函数还是Bulk_quote的
+函数。无论我们是拷贝还是移动数据。clone都返回一个新分配对象的指针，该对象与clone所属的类型一致。我们把
+一个shared_ptr绑定到这个对象上，然后调用insert将这个新分配的对象添加到items中。注意，因为shared_ptr
+支持派生类向基类的类型转换，所以我们能把shared_ptr<Quote>绑定到Bulk_quote *上。
+
+15.9	文本查询程序再探
+	接下来，我们扩展12.3节的文本查询程序，用它作为说明继承的最后一个例子。在上一版的程序中，我们可以查询
+在文件中某个指定单词的出现情况。我们将在本节扩展该程序使其支持更多更复杂的查询操作。在后面的例子中，我们
+将针对下面这个小故事展开查询:
+		Alice Emma has long flowing red hair
+		Her Daddy says when the wind blows
+		through herrr hair,it looks almost alive
+		like a fiery bird in flight
+		A beatutiful fiery bird,he tells her
+		magical but untamed
+		"Daddy , shush, there is no such thing,"
+		she tells him,at the same time wanting
+		him to tell herrr more.
+		Shyly,she asks,"I mean, Daddy,is there?"
+我们的系统将支持如下查询形式:
+		>>>	单词查询，用于的到匹配某个给定string的所有行
+			Executing Query for : Daddy
+			Daddy occurs 3 times
+			(line 2) Her Daddy says when the wind blows
+			(line 7) "Daddy , shush, there is no such thing,"
+			(line 10) Shyly,she asks,"I mean, Daddy,is there?"
+		>>>	逻辑非查询，使用~运算符的到不匹配查询条件的所有行:
+			Executing Query for : ~(Alice)
+			~(Alice) occurs 9 times
+			(line 2) Her Daddy says when the wind blows
+			(line 3) through herrr hair,it looks almost alive
+			(line 4) like a fiery bird in flight
+			.......
+		>>>	逻辑或查询，使用 | 运算符返回匹配两个条件中任意一个的行:
+			Executing Query for : (hair | Alice)
+			(hair | Alice) occurs 2 times
+			(line 1) Alice Emma has long flowing red hair
+			(line 3) through herrr hair,it looks almost alive
+		>>>	逻辑与查询，使用&运算符返回匹配两个条件的行:
+			Executing Query for : (hair & Alice)
+			(hair& Alice) occurs 1 time
+			(line 1) Alice Emma has long flowing red hair
+此外，我们还希望能够混合使用这些运算符，比如:
+			fiery & bird | wind
+在类似这样的例子中，我们将使用C++通用的优先级规则复杂表达式求值。因此，这条查询语句所得行应该是人如下
+二者之一；在该行中或者fiery和bird同时出现或者出现了wind:
+			Executing Query for : ((fiery & bird) | wind)
+			((fiery & bird) | wind) ouccurs 3 times
+			(line 1) Her Daddy says when the wind blows 
+			(line 4) like a fiery bird in flight
+			(line 5) A beatutiful fiery bird,he tells her
+在输出内容中手偶县是那条查询语句，我们使用圆括号来表示查询被解释和执行的次序。与之前实现的版本一致，
+接下来系统将按照查询结果中的行号升序显示结果并且每一行只显示一次。
+
+15.9.1	面向对象的解决方案
+	我们可能会认为使用12.3.2节的TextQuery类表示单词查询，然后从该类中派生出其他查询是一种可行的方案。
+	然而，这样的实际实际上存在缺陷，为了理解其中的原因，我们不妨考虑逻辑非的查询。单词查询查找一个指定
+的单词，为了让逻辑非查询按照单词的查询方式执行，我们将不得不定义逻辑非查询所要查找的单词。但是在一般情
+况下，我们无法想得到这样的单词。相反，一个逻辑非查询中含有一个结果值需要取反的查询语句(单词查询或任何
+其他查询):类似的，一个逻辑与查询和一个逻辑或查询包含两个结果值需要合并的查询语句。
+	由上述观察结果可知，我们应该将几种不同的查询建模成相互独立的类，这些类共享一个基类:
+		WordQuery	//Daddy
+		NotQuery	//~Alice
+		QrQuery		// hair | Alice
+		AndQuery	// hair & Alice
+这些类只包含两个操作:
+		>>>	eval,接受一个TextQuery对象并返回一个QueryResult，eval函数使用给定的TextQuery
+对象查找与之匹配的行。
+		>>>	rep,返回基础查询的string表示的形式，eval函数使用rep创建一个表示匹配结果的QueryResult，
+输出运算符使用rep打印查询表达式。
+
+关键概念:继承与组合
+	继承体系的设计本身是一个非常复杂的问题，已超出了本书的范围。然而，有一条设计准则非常重要也非常
+基础，每个程序员都应该熟悉它。
+	当我们令一个类公有地继承另一个类时，派生类应当反映与基类的"是一种(Is A)"关系。在设计良好的类
+体系当中，公有派生类的对象应该可以用在任何需要基类对象的地方。
+	类型之间的另一种常见的关系是"有一个(Has A)"关系，局哟偶偶这种关系的类暗含成员的意思。在我们的
+书店示例中，基类表示的是按规定价格销售的书籍的报价。Bulk_quote"是一种"报价结果，只不过它
+使用的价格策略不同。我们的书店类都"有一个"价格成员和ISBN成员。
+
+抽象基类
+	如我们所知，在这四种查询之间并不存在彼此继承的关系，从概念上来说它们互为兄弟。因为所有这些类都共享
+同一个接口，所以我们需要定义一个抽象基类来表示该接口。我们将所需的抽象基类命名为Query_base，依次来表
+示它的角色是整个查询继承体系的根节点。
+	我们的Query_base类把eval和rep定义成纯虚构函数。其他代表某种特定查询类型的类必须覆盖这两个函数。
+我们将从Query_base直接派生出WordQuery和NotQuery。AndQuerry和OrQuery都具有系统中其他类
+所不具备的一个特殊属性：他们各自包含两个运算对象。为了对这种属性建模，我们定义另外一个名为BinaryQuery
+的抽象基类，该抽象基类用于表示含有两个运算对象的查询。AndQuery和OrQuery继承自BinaryQuery，而BinaryQuery
+继承自Query_base。由这些分析我们将得到如图15.2所示的类设计结果:
+					Query_base
+				/       |        \
+			   /        |         \
+			  /         |          \
+		   WordQuery  NotQuery   BinaryQuery
+							　　　　　　　/       \
+								  /         \
+								 /           \
+							　 AndQuery     OrQuery
+将层次关系隐藏于接口类中
+	我们的程序将致力于计算查询结果，而非仅仅构建查询的体系。为了使程序能正常运行，我们必须首先创建查询
+命令，最简单的方法是编写C++表达式。例如，可以编写下面的代码来生成之前描述的复合查询:
+		Query q = Query("fiery") & Query("bird") | Query("wind");
+	如上所述，其隐含的意思是用户层代码将不会直接使用这些继承的类；相反，我们将定义一个名为Query的接口
+类，由它负责隐藏整个继承体系。Query类将保存一个Query_base指针，该指针绑定到Query_base的派生类对象
+上。Query类与Query_base类提供的操作是相同的；eval用于求查询的结果，rep用于生成查询的string版本，同
+时Query也会定义一个重载的输出运算符用于显示查询。
+	用户将通过Query对象的操作间接地创建并处理Query_base对象。我们定义Query对象的三个重载运算符以
+及一个接受string参数的Query构造函数，这些函数动态分配一个新的Query_base派生类的对象:
+		>>>	&运算符生成一个绑定到新的AndQuery对象上的Query对象
+		>>>	|运算符生成一个绑定到新的OrQuery对象上的Query对象
+		>>>	~运算符生成一个绑定到新的NotQuery对象上的Query对象
+		>>>	接受string参数的Query构造函数生成一个新的WordQuery对象。
+
+
+									WordQuery
+									 [fiery]
+                            AndQuery /
+						       [  ] /
+                               [  ]/
+                               [  ]\
+					  OrQuery /     \
+		    Query      [   ] /       \
+		q =  [  ]----->[   ]/        [bird]
+                       [   ]\       WordQuery
+							 \
+							  \
+							  [wind]
+							 WordQuery
+		由表达式创建的对象
+		Query q = Query("fiery") & Query("bird") | Query("wind");
+				图15.3	使用Query表达式创建的对象
+
+理解这些类的工作机理
+	在这个应用程序中，很大一部分工作是构建代表用户查询的对象，对于读者来说认识到这一点重要。例如，像上面
+这样的表达式将生成如图15.3所示的一系列相关对象的集合。
+	一旦对象树构建完成后，对某一条查询语句的求值(或生成表示形式的)过程基本上就转换为沿着箭头方向依次对
+每个对象求值(或显示)的过程(由编译器为我们组织管理)。例如，如果我们对q(即树的根节点)调用eval函数，则该
+函数语句将令q所指的OrQuery对象eval它自己。对该OrQuery求值实际上对它的两个运算对象执行eval操作。一个
+运算对象是AndQuery，另一个是查找单词wind和WordQuery。接下来，对AndQuery求值转换为对它的两个WordQuery
+求值，分别生成单词fiery和bird的查询结果。
+	对于面向对象编程的新手来说，要想理解一个程序，最困难的部分往往是理解程序的设计思路。一旦你掌握了程序
+的设计思路，接下来的实现也就水到渠成了。为了帮助读者理解程序设计的过程，我们在表15.1中整理了之前那个例子
+用到的类，并对其进行了简要的描述:
+				15.1	概述:Query程序设计
+	Query程序接口类和操作
+						该类读入一个给定的文件并构建以一个查找图。这个类包含一个
+		TextQury		query操作，它接受以一个string实参，返回一个QueryResult
+						对象；该QueryResult对象表示string出现的行
+		QueryResult		该类保存一个query操作的结果
+		Query			是一个接口类，指向Query_base派生类的对象
+		Query q(s)		将Query对象q绑定到一个存放着string s的新WordQuery
+						对象上
+		q1 & q2			返回一个Query对象，该Query绑定到一个存放q1和q2的新
+						AndQuery对象上
+		q1 | q2			返回一个Query对象，该Query绑定到一个存放q1和q2的新
+						OrQuery对象上
+		~q				返回有一个Query对象，该Query绑定到一个存放q的新NotQuery
+						对象上
+	Query程序实现类
+		Query_base		查询类的抽象基类
+		WordQuery		Query_base的派生类，用于查找一个给定的单词
+		NotQuery		Query_base的派生类，查询结果是Query运算对象没有出现
+						的行的集合
+		BinaryQuery		Query_base派生出来的另一个抽象基类，表示有两个运算对
+						象的查询
+		OrQuery			BinaryQuery的派生类，返回它的两个运算对象分别出现的行
+						的并集
+		AndQuery		BinaryQuery的派生类，返回它的两个运算对象分别出现的行
+						的交集
+
+15.9.2	Query_base 和 Query类
+	下面我们开始程序的实现过程，首先定义Query_base类:
+		//这是一个抽象基类，具体的查询类型从中派生，所有成员都是private的
+		class Query_base{
+			friend class Query;
+		protected:
+			using line_noo = TextQuery::line_no;	//用于eval函数
+			virtual ~Query_base() = default;
+		private:
+			//eval返回与当前Query匹配的QueryResult
+			virtual QueryResult eval(const TextQuery &)const = 0;
+			virtual std::string rep() const = 0;
+		};
+eval和rep都是纯虚函数，因此Query_base是一个抽象基类。因为我们不希望用户或者派生类直接使用Query_base，
+所以它没有public成员。所有对Query_base的使用都需要通过Query对象，因为Query需要调用Query_base
+的虚函数，所以我们将Query声明成Query_base的友元。
+	受保护的成员line_no将在eval函数内部使用。类似的，析构函数也是受保护的，因为它将(隐式地)在派生类
+析构函数中使用。
+
+Query类
+	Query类对外提供接口，同时隐藏了Query_base的继承体系。每个Query对象都含有一个指向Query_base对
+象的shared_ptr。因为Query是Query_base的唯一接口，所以Query必须定义自己的eval和rep版本。
+	接受一个string参数的Query构造函数将创建一个新的WordQuery对象，然后将它的shared_ptr成
+员绑定到这个新创建的对象上。&、|和~运算符分别创建AndQuery,OrQuery和NotQuery对象，这些
+运算符将返回一个绑定到新创建的对象上的Query对象。为了支持这些运算符，Queery还需要另外一个构造函数，它
+接受指向Query_base的shared_ptr并且存储给定的指针。我们将这个构造函数声明为私有的。原因是因为我们不希
+望一般的用户代码能随便定义Query_base对象。因为这个构造函数是私有的，所以我们需要将三个运算符声明为友元:
+	在形成了上述设计思路后，Query类本身就比较简单了:
+		//这是一个管理Query_base继承体系的接口类
+		class Query{
+			//这些运算符需要访问接受shared_ptr的构造函数，而该函数是私有的
+			friend Query operator~(const Query &);
+			friend Query operator|(const Query &,const Query &);
+			friend Query operator&(const Query &,const Query &);
+		public:
+			Query(const std::string &);	//构建一个新的WordQuery
+			QueryResult eval(const TextQuery &t)const { return q->eval(t);}
+			std::string rep()const { return q->rep();}
+		private:
+			Query(std::shared_ptr<Query_base> query):q(query){}
+			std::shared_ptr<Query_base> q;
+		};
+我们首先将创建Query对象的运算符声明为友元，之所以这么做是因为这些运算符需要访问那个私有构造函数。
+	在Query的公有接口部分，我们声明了接受string的构造函数，不过没有对其进行定义。因为这个构造函数
+将要创建一个WordQuery对象，所以我们应该首先定义WordQuery类，随后才能定义string的Query构造函
+数。
+	另外两个公有成员是Query_base的接口，其中，Query操作使用它的Query_base指针来调用各自的Query_base
+虚函数。实际调用哪个虚函数版本将由q所
+指对象类型决定，并且直到运行时才最终确定下来。
+
+Query的输出运算符
+	输出运算符可以很好的解释我们的整个查询系统是如何工作的:
+		std::ostream &operator<<(std::ostream &os,const Query &query)
+		{
+			//Query::rep通过它的Query_base指针对rep()进行了虚调用
+			return os << query.rep();
+		}
+当我们打印一个Query时，输出运算符调用Query类的公有rep成员。运算符函数通过指针成员虚调用当前Query
+所指对象的rep成员，也就是说，当我们编写如下代码时，
+		Query andq = Query(sought1) & Query(sought2);
+		cout<<andq<<endl;
+输出运算符将调用andq的Query::rep，而Query::rep通过它的Query_base指针虚调用Query_base版本
+的rep函数。因为andq指向的是一个AndQuery对象，所以本次的调用将运行AndQuery::rep。
+
+15.9.3	派生类
+	对于Query_base的派生类来说，最有趣的部分是这些派生类如何表示一个真实的查询。其中WordQuery类最
+直接，它的任务就是保存要查找的单词。
+	其他类分别操作一个或两个运算对象。NotQuery有一个运算对象，AndQuery和OrQuery有两个。在这些类
+中，运算对象可以是Query_base的任
+意一个派生类的对象:一个NotQuery对象可以被用在WordQuery、AndQuery、OrQuery或另一个NotQuery中，
+为了支持这种灵活性，运算对象必须以Query_base指针的形式存储。
+这样我们就能把该指针绑定到任何我们需要的
+具体类上。
+	然而实际上我们的类并存储Query_base指针，而是直接使用一个Query对象。就像用户代码可以通过接口类得
+到简化一样，我们也可以使用接口类来简化我们自己的类。
+	至此我们已经清楚了所有类的设计思路，接下来依次实现它们。
+
+WordQuery类
+	一个WordQuery查找一个给定的string，它是在给定的TextQuery对象上实际执行查询唯一一操作:
+		class WordQuery : public Query_base{
+			friend class Query;
+			WordQuery(const std::string &s) : query_word(s){}
+			//具体的类:WordQuery将定义所有继承而来的纯虚函数
+			QueryResult eval(const TextQuery &t)const {return t.query(query_wirrd);}
+			std::string rep() const {return query_word;}
+			std::string query_word;//要查找的单词
+		};
+和Query_base一样，WordQuery没有公有成员。同时，Query必须作为WordQuery的友元，这样Query才能访问
+WordQuery的构造函数。
+	每个表示具体查询的类都必须定义继承而来的纯虚函数eval和rep。我们在WordQuery类的内部定义这两个
+操作；eval调用其TextQuery参数的query成员，由query成员在文件中实际进行查找；rep返回这个WordQuery
+表示的string(即query_word)。
+	定义了WordQuery类之后，我们就能定义接受string的Query构造函数了:
+		inline Query::Query(const std::string &s):q(new WordQuery(s)){}
+这个构造函数分配一个WordQuery，然后令其指针成员指向新分配的对象。
+
+NotQuery类及~运算符
+	~运算符生成一个NotQuery，其中保存着一个需要对其取反的Query:
+		class NotQuery:public Query_base{
+			friend Query operator~(const Query &);
+			NotQuery(const Query &q):query(q){}
+			//具体的类:NotQuery将定义所有继承而来的纯虚函数
+			//rep的返回的就是你的输出的格式
+			std::string rep()const {return "~("+query.rep() + ")";}
+			QueryResult eval(const TexQuery &)const;
+			Query query;
+		};
+		inline Query operator~(const Query &operand)
+		{
+			return std::shared_ptr<Query_base>(new NotQuery(operand));
+		}
+因为NotQuery的所有成员都是私有的，所以我们一开始就要把~运算符设定了友元。为了rep一个NotQuery，我们
+需要将~与基础的Query连接在一起。我们在输出的结果中加上适当的括号，这样读者就可以清楚地知道查询的优先级
+了。
+	值得注意的是,在NotQuery自己的rep成员中对rep的调用最终执行的是一个虚调用:query.rep()是对Query
+类rep成员的非虚调用。接着Query::rep将调用q->rep()，这是一个通过Query_base指针进行的虚调用。
+	~运算符动态分配一个新的NotQuery对象，其return语句隐式地接受一个shared_ptr<Query_base>的Query
+构造函数。也就是说，return语句等价于:
+		//分配一个新的NotQuery对象
+		//将所得的NotQuery指针绑定到一个shared_ptr<Query_base>
+		shared_ptr<Query_base>tmp(new NotQuery(expr));
+		return Query(tmp);	//使用接受一个shared_ptr的Query构造函数
+	eval成员比较复杂，因此我们将在类的外部实现它。15.9.4节将专门介绍如何定义eval函数。
+
+BinaryQuery类
+	BinaryQuery类也是一个抽象基类，它保存操作两个运算对象的查询类型所需的数据:
+		class BinaryQuery : public Query_base{
+		protected:
+			BinaryQuery(const Query &l,const Query &r,std::string s):
+				lhs(l),rhs(r),opSym(s){}
+			//抽象类:BinaryQuery不定义eval
+			std::string rep()const {
+				 return "(" + lhs.rep() + " "+opSym + " " +rhs.rep() + ")";
+			}
+			Query lhs,rhs;	//左侧和右侧运算对象
+			std::string opSym;	//运算符的名字
+		};
+BinaryQuery中的数据是两个运算对象及相对应的运算符符号，构造函数负责接受两个运算对象和有一个运算符符号，
+然后将它们存储在对应的数据成员中。
+	要向rep一个BinaryQuery，我们需要生成一个带括号的表达式。表达式的内容依次包括左侧运算对象、运
+算符以及右侧运算对象。就像我们显示NotQuery的方法一样，对rep的调用最终是对lhs和rhs所指Query_base对
+象的rep函数进行虚调用。
+注意:
+	BinaryQuery不定义eval而是继承了该纯虚函数。因此，BinaryQuery也是一个抽象基类，我们不能
+创建BinaryQuery类型的对象。
+
+AndQuery类、OrQuery类及相应的运算符
+	AndQuery类和OrQuery类以及它们的运算符都非常相似:
+		class AndQuery : public BinaryQuery {
+			friend Query operator&(const Query &,const Query &);
+			AndQuery(const Query &left,const Query &right):BinaryQuery(left,right,"&"){}
+			//具体的类：AndQuery继承了rep并且定义了其他纯虚函数
+			QueryResult eval(const TextQuery &)const;
+		};
+		inline Query operator&(const Query &lhs,const &rhs)
+		{
+			return std::shared_ptr<Query_base>(new AndQuery(lhs,rhs));
+		}
+		class OrQuery : public BinaryQuery{
+			friend Query operator|(const Query &,const Query &);
+			OrQuery(const Query &left,const Query &right):BinaryQuery(left,right,"|"){}
+			QueryResult eval(const TextQuery &)const;
+		};
+		inline Query operator|(const Query &lhs,const Query &rhs){
+			return std::shared_ptr<Query_base>(new OrQuery(lhs,rhs));
+		}
+这两个类将各自的运算符定义成友元，并且各自定义了一个构造函数通过运算符创建BinaryQueryy基类部分。他们
+继承BinaryQuery的rep函数，但是覆盖了eval函数。和~运算符一样，&和|运算符也返回一个绑定到新分配对象
+上的shared_ptr。在这些运算符中，return语句负责将shared_ptr转换成Query。
+
+15.9.4	eval函数
+	eval函数是我们这个查询系统的核心。每个eval函数作用于各自的运算对象，同时遵循的内在逻辑也有所区别:
+OrQuery的eval操作返回两个运算对象查询结果的并集，而AndQuery返回交集。与它们相比，NotQuery的eval的
+eval函数更加复杂一些，它需要返回运算对象没有的文本行。
+	为了支持上述eval函数的处理，我们需要使用QueryResult，在它当中定义了12.3.2节练习添加的成员。假设
+QueryResult包含begin和end成员，它们允许我们在QueryResult保存的行号set中进行迭代；另外假设QueryReuslt
+还包含以一个名为get_file的成员，它返回一个指向待查询文件的shared_ptr。
+
+注意:
+	我们的Query类使用了练习12.3.2节为QueryResult定义的成员。
+
+OrQuery::eval
+	一个OrQuery表示的是它的两个运算对象结果的并集，对于每个运算对象来说，我们通过调用eval得到它的查询
+结果。因为这些运算对象的类型是Query，所以调用eval也就是调用Query::eval，而后者实际上是对潜在的Query_base
+对象的eval进行虚调用。每次调用完成后，得到的结果是一个QueryResult，它表示运算对象出现的行号。
+我们把这些行号组织在一个新的set中:
+		//返回运算对象查询结果set的并集
+		QueryResult OrQueryy::eval(const TextQuery &text)const
+		{
+			//通过Query成员lhs和rhs进行的虚调用
+			//调用eval返回每个运算对象的行号拷贝到结果set中
+			auto right = rhs.eval(text),left = lhs.eval(text);
+			//将左侧运算对象的行号拷贝到set中
+			auto ret_lines = make_shared<line_no>(left.begin(),left.end());
+			//插入右侧运算对象所得的行号
+			ret_lines->insert(right.begin(),right.end());
+			//返回一个新的QueryResult，它表示lhs和rhs的并集
+			return QueryQesult(rep(),ret_lines,left.get_file());
+		}
+我们使用接受一对迭代器的set构造函数初始化ret_lines。一个QueryResult的begin和end成员返回行号
+set的迭代器，因此，创建ret_lines的过程实际上拷贝了left集合的元素。接下来对ret_lines调用insert，
+并将right的元素插入进来。调用结束后，ret_lines将包含left或right中出现过的所有行号。
+	eval函数在最后构建并返回一个表示混合查询匹配的QueryReuslt。QueryResult的构造函
+数接受三个实参:一个表示查询的string、一个指向匹配行号的set的shared_ptr，调用get_file获取指向
+文件的shared_ptr。因为left和right指向的是同一个文件，所以使用哪个执行get_file函数并不重要。
+
+AndQuery::eval
+	AndQuery的eval和OrQuery很类似，唯一的区别就是它调用了一个标准库算法来求得两个查询结果中共
+有的行:
+		//返回运算对象查询结果set的交集
+		QueryResult AndQuery::eval(const TextQuery &text)const
+		{
+			//通过Query运算对象进行的虚调用，以获得运算对象的查询结果set
+			auto left = lhs.eval(text),right = rhs.eval(text);
+			//保存left和right交集的set
+			auto ret_lines = make_shared<set<line_no>>{};
+			//本次调用的目的迭代器向ret添加元素
+			set_intersection(left.begin(),left.end(),right.begin(),right.end(),
+							inserter(*ret_lines,ret_lines->begin()));
+			return QueryResult(rep(),ret_lines,left.get_file());
+		}
+其中我们使用标准库算法set_intersection来合并两个set，也就是包含共有的成员。
+	set_intersection算法接受五个迭代器。它使用前四个迭代器表示两个输入序列，最后有一个实参表示
+目的位置。该算法将两个输入序列中共同出现的元素写入到目的位置中。
+	在上述调用中我们传入一个插入迭代器作为目的位置。当set_intersection向这个迭代器写入
+内容时，实际上是向ret_lines插入一个新元素。
+	和OrQuery的eval函数一样，AndQuery的eval函数也在最后构建并返回一个表示混合查询匹配的QueryResult。
+
+NotQuery::eval
+	NotQuery查询运算对象没有出现的文本行:
+		//返回其运算对象的结果set中不存在的行
+		QueryResult NotQuery::eval(const TextQuery &text)const{
+			//通过Query运算对象对eval进行虚调用
+			auto result = query.eval(text);
+			//开始时结果set为空
+			auto ret_lines = make_shared<set<line_no>>();
+			//我们必须在运算对象出现的所有行中进行迭代
+			auto beg = result.begin(),end=result.end();
+			//对于输入文件的每一行，如果该行不在result中，则将其添加到ret_lines
+			auto sz = result.get_file()->size();
+			for(size_t n = 0;n != sz;++n)
+			{
+				//如果我们还没有处理完result的所有行
+				//检查当前行是否存在
+				if(beg == end || *beg != n)
+					ret_lines->insert(n);	//如果不在result当中，添加这一行
+				else if(beg != end)
+					++beg;		///否则继续去result的下一行(如果有的话)
+			}
+			return QueryResult(rep(),ret_lines,result.get_file());
+		}
+和其他eval函数一样，我们首先对当前的运算对象调用eval，所得的结果QueryResult中包含的是运算对象出现的行号，
+但我们想要的是运算对象未出现的行号。也就是说，我们需要的是存在于文件中，但是不在result中的行。
+	要想得到最终的结果，我们需要遍历不超过输出文件大小的所有整数，并将所有不在result中的行号放入到ret_lines
+中。我们使用beg和end分别表示result的第一个元素和最后以一个元素的下一位置。因为遍历的对象是一个set，所以当
+遍历结束后获得的行号将按照升序排列。
+	循环体负责检查当前的编号是否在result当中。如果不在，将这个数字添加到ret_lines中；如果该数字属于
+result，则我们递增result的迭代器beg。
+	一旦处理完所有行号，就返回包含ret_lines的一个QueryRessult对象；和之前版本的eval类似，
+该QueryResult对象还包含rep和get_file的运行结果。
