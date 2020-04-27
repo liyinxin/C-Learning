@@ -211,7 +211,7 @@ shared_ptr的成员将记录有多少个StrBlob共享相同的vector，并在vec
 		public:
 			typedef std::vector<std::string>::size_type size_type;
 			StrBlob();
-			StrBlob(std::initializer_list<std::string> i1);
+			StrBlob(std::initializer_list<std::string> i1);//这个是使用{}来构造函数的时候采用的
 			size_type size() const { return data->size()};
 			bool empty() const { return data->empty();}
 			//添加和删除元素
@@ -726,8 +726,8 @@ StrBlob所指向的vector的生存期。但是，可以阻止用户访问一个�
 			std::shared_ptr<std::vector<std::string>>check(
 							std::size_t,const std::string &)const;
 		//保存一个weak_ptr,意味着底层vector可能会被销毁
-		std::weak_ptr<std::vector<std::string>>wptr;
-		std::size_t curr;	//在数组中的当前位置
+			std::weak_ptr<std::vector<std::string>>wptr;
+			std::size_t curr;	//在数组中的当前位置
 		};
 默认构造函数生成一个空的StrBlobPtr。其构造函数初始化列表将curr显示初始化为0，并将wptr隐式初始化为一
 个空weak_ptr。第二个构造函数接受一个StrBlob引用和有一个可选的索引值。此构造函数初始化wptr，令其指向给定
