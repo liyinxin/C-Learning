@@ -1680,7 +1680,7 @@ OrQuery::eval
 对象的eval进行虚调用。每次调用完成后，得到的结果是一个QueryResult，它表示运算对象出现的行号。
 我们把这些行号组织在一个新的set中:
 		//返回运算对象查询结果set的并集
-		QueryResult OrQueryy::eval(const TextQuery &text)const
+		QueryResult OrQuery::eval(const TextQuery &text)const
 		{
 			//通过Query成员lhs和rhs进行的虚调用
 			//调用eval返回每个运算对象的行号拷贝到结果set中
