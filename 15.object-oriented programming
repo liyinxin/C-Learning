@@ -1334,7 +1334,7 @@ print_total的实参包括一个用于写入数据的ostream、一个待处理�
 将针对下面这个小故事展开查询:
 		Alice Emma has long flowing red hair
 		Her Daddy says when the wind blows
-		through herrr hair,it looks almost alive
+		through her hair,it looks almost alive
 		like a fiery bird in flight
 		A beatutiful fiery bird,he tells her
 		magical but untamed
@@ -1360,7 +1360,7 @@ print_total的实参包括一个用于写入数据的ostream、一个待处理�
 			Executing Query for : (hair | Alice)
 			(hair | Alice) occurs 2 times
 			(line 1) Alice Emma has long flowing red hair
-			(line 3) through herrr hair,it looks almost alive
+			(line 3) through her hair,it looks almost alive
 		>>>	逻辑与查询，使用&运算符返回匹配两个条件的行:
 			Executing Query for : (hair & Alice)
 			(hair& Alice) occurs 1 time
