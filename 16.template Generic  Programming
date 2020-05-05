@@ -1098,4 +1098,634 @@ f3的函数参数是T &&且T是int &，因此T &&是int & &&，会折叠成int &
 			if(val == t){/*.......*/}//若T是引用类型，则一直为true
 		}
 当我们对一个右值调用f3时，例如字面常量42，T为int。在此情况下，局部变量t的类型为int，且通过拷贝参数
-val的值被初始化。当我们对t赋值时，参数val保持不变。
+val的值被初始化。当我们对t赋值时，参数val保持不变。另一方面，当我们对一个左值i调用f3时，则T为int &。
+当我们对t赋值时，也同时改变了val的值。在f3的这个实例化版本中，if判断永远得到true。
+	当代码中涉及的类型可能是普通(非引用)类型，也可能是引用类型时，编写正确的代码就会变得异常困难(虽然
+remove_reference这样的类型转换可能会有帮助)。
+	在实际中，右值引用通常用于两种情况：模板转发其实参或模板被重载。我们将在16.2.7中介绍实参转发，
+将在16.3节中介绍模板重载。目前应该注意的是，使用右值引用的函数模板通常使用我们在13.6.3节中看到的方式
+来进行重载:
+		template <typename T> void f(T &&);	//绑定到非const右值
+		template <typename T> void f(const T &);	//左值和const 右值
+与非模板函数一样，第一个版本将绑定到可修改的右值，而第二个版本将绑定到左值或const右值。
+注意:
+		const int ci  = 10;
+		template <typename T> void g(T &&val);
+这样的时候，T为const int &，因为首先int被转换为int &，然后再加上const。
+
+16.2.6	理解std::move
+	标准库move函数是使用右值引用的模板的一个很好的例子。幸运的是，我们不必理解move所使用的模板机制
+也可以直接使用它。但是，研究move是如何工作的可以帮助我们巩固对模板的理解和使用。
+	在13.6.2节中我们注意到，虽然不能直接将一个右值引用绑定到一个左值上，但可以用move获得一个绑定到
+左值上的右值引用。由于move本质上可以接受任何类型的实参，因此我们不会惊讶于它是一个函数模板。
+
+std::move是如何定义的
+	标准库是这样定义move的:
+		//在返回类型和类型转换中也要用到typename
+		template <typename T> typename remove_reference<T>::type && move(T&& t)
+		{
+			//static_cast是在前面4.11.3节介绍的
+			return static_cast<typename remove_reference<T>::type &&> (t);
+		}
+这段代码很短，但其中有些微妙之处。首先，move的函数参数T&&是一个指向模板类型参数的右值引用。通过引用
+折叠，此参数可以与任何类型的实参匹配。特别是，我们既可以传递给move一个左值，也可以传递给它一个右值。
+		string s1("hi"),s2;
+		s2 = std::move(string("bye!"));	//正确从一个右值移动数据
+		s2 = std::move(s1);	//正确:但在赋值后，s1的值是不确定的!!!!
+
+std::move是如何工作的
+	在第一个赋值中，传递给move的实参是string的构造函数的右值结果－－string("bye!")。如我们已经见到过的，
+当向一个右值引用函数传递一个右值时，由实参推断出的类型为被引用的类型。因此，在std::move(string("bye"))
+中:
+		>>>	推断出的T的类型为string
+		>>>	因此，remove_reference用string进行实例化
+		>>>	remove_reference<string>的type成员是string
+		>>>	move的返回类型是string &&
+		>>>	move的函数参数t的类型是string &&
+因此这个调用实例化move<string>，即函数
+		string && move(string &&)
+函数体返回static_cast<string &&>(t)。t的类型已经是string &&，于是类型转换什么都不做。因此，
+此调用的结果就是它所接受的右值引用。
+	现在考虑第二个赋值，它调用了std::move()。在此调用中，传递给move的实参是一个左值。这样:
+		>>>	推断出的T的类型为string&(string的引用，而非普通string)
+		>>>	因此，remove_reference用string &进行实例化
+		>>>	remove_reference<string &>的type成员是string
+		>>>	move的返回类型仍然是string &&
+		>>>	move的函数参数t实例化为string & &&,会折叠成为string &。
+因此，这个调用实例化move<string &>，即
+		string && move(string &t)
+这正是我们所寻求的---我们希望将一个右值引用绑定到一个左值。这个实例的函数体返回static<string &&>(t)。
+在此情况下，t的类型为string &,cast将其转换为string &&。
+
+从一个左值static_cast到一个右值引用是允许的
+	通常情况下，static_cast只能用于其他合法的类型转换。但是，这里又有一条针对右值引用的特许规则:
+虽然不能隐式地将一个左值转换为右值引用，但我们可以用static_cast显示地将一个左值转换为一个右值
+引用。
+	对于操作右值引用的代码来说，将一个右值引用绑定到一个左值的特性允许它们截断左值。有时候，例如在
+我们的StrVec类的reallocate函数中，我们知道截断一个左值是安全的。一方面，通过允许进行这样的转换，
+C++语言认可了这种用法。但另一方面，通过强制使用static_cast，C++语言试图阻止我们意外地进行
+这种转换。
+	最后，虽然我们可以直接编写这种类型转换代码，但使用标准库move函数是容易得多的方式。而且，统一使
+用std::move使得我们在程序中查找潜在的截断左值的代码变得很容易。
+
+16.2.7	转发
+	某些函数需要将其一个或多个实参连同类型不变地转发给其他函数。在此情况下，我们需要保持被转发实参的
+所有性质，包括实参类型是否是const的以及实参是左值还是右值。
+	作为一个例子，我们将编写一个函数，它接受一个可调用表达式和两个额外实参。我们的函数将调用给定的可
+调用对象，将两个额外参数逆序传递给它。下面是我们的翻转函数的初步模样:
+		//接受一个可调用对象和另外两个参数的模板
+		//对"翻转"的参数调用给定的可调用对象
+		//flip1是一个不完整的实现:顶层const和引用丢失了
+		template<typename F,typename T1,typename T2>void flip1<F f,T1 t1,T2 t2){
+			f(t2,t1);
+		}
+这个函数一般情况下工作的很好，但当我们希望用它调用一个接受引用参数的函数时就会出现问题:
+		void f(int v1,int &v2)
+		{
+			cout<<v1<<" " <<++v2<<endl;
+		}
+在这段代码中，f改变了绑定到v2的实参的值。但是，如果我们通过flip1调用f，f所做的改变就不会影响实参:
+		f(42,i);	//f改变了实参i
+		flip1(f,j,42);	//通过flip1调用f不会改变j
+问题在于j被传递给flip1的参数t1。此参数是一个普通的、非引用的类型int，而非int &。因此，这个flip1
+调用会实例化为
+		void flip1(void(*fcn)(int,int &),int t1,int t2);
+j的值被拷贝到t1中。f中的引用参数被绑定到t1，而非j，从而其改变不会影响j。
+
+定义能保持类型信息的函数参数
+	为了通过翻转函数传递给一个引用，我们需要重写函数，使其参数能保持给定实参的"左值性"。更进一步，
+可以想到我们也希望保持参数的const属性。
+	通过将一个函数参数定义为一个指向模板类型参数的右值引用，我们可以保持其对应实参的所有类型信息。
+而使用引用参数(无论是左值还是右值)使得我们可以保持const属性，因为在引用类型中的const是底层的。
+如果我们将函数参数定义为T1 &&和T2 &&，通过引用折叠就可以保持翻转实参的左值/右值属性:
+		template <typename F,typename T1,typename T2> void flip2(F f,T1 &&tq,T2 &&t2){
+			f(t2,t1);
+		}
+与较早的版本一样，如果我们调用flip2(f,j,42),将传递给参数t1一个左值j。但是，在flip2中，推断
+出的T1的类型是int &&，这意味着t1的类型会折叠为int &。由于是引用类型，t1被绑定到j上。当flip2
+调用f时，f中的引用参数v2被绑定到t1，也就是被绑定到j。当f递增v2时，它也同时改变了j的值。
+注意:
+	如果一个函数参数是指向模板类型参数的右值引用，它对应的实参的const属性和左值/右值属性也将得
+到保持。
+	这个版本的flip2解决了一半问题。它对于接受一个左值引用的函数工作的很好，但不能用于接受右值引
+用参数的函数，例如:
+		void g(int &&i,int &j)
+		{
+			cout<<i<<" "<<j<<endl;
+		}
+如果我们试图通过flip2调用g，则参数t2将被传递给g的右值引用参数。即使我们传递给一个右值flip2:
+		flip2(g,i,42);	//错误:不能从一个左值实例化int &&,这个只能是在函数模板中才有折叠引用
+传递给g的将是flip2中名为t2的参数。函数参数与其他任何变量一样，都是左值表达式。因此，flip2中对
+g的调用将传递给g的右值引用参数一个左值。
+
+在调用中使用std::forward保持类型信息
+	我们可以使用一个名为forward的新标准库设施来传递flip2的参数，它能保持原始实参的类型。类似
+move,forward定义在头文件utility中。与move不同，forward必须通过显示参数类型的右值引用。即，
+forward<T>的返回类型是T &&。
+	通常情况下，我们使用forward传递那些定义为模板类型参数的右值引用的函数参数。通过其返回类型
+上的引用折叠，forward可以保持给定实参的左值/右值属性:
+		template <typename Type> intermediary(Type &&arg)
+		{
+			finalFcn(std::forward<Type>(arg));
+			//....
+		}
+本例中我们使用Type作为forward的显示模板实参类型，它是从arg推断出来的。由于arg是一个模板类型参
+数的右值引用，Type将表示传递给arg的实参的所有类型信息。如果实参是一个右值，则Type是一个普通(非
+引用)类型，forward<Type>将返回Type &&。如果实参是一个左值，则通过引用折叠，Type本身是一个左
+值引用类型。在此情况下，返回类型是一个指向左值引用类型的右值引用。两次对forward<Type>的返回类
+型进行引用折叠，将返回一个左值引用类型。
+注意:
+	当用于一个指向模板参数类型的右值引用函数参数(T &&)时，forward会保持实参类型的所有细节。
+
+使用forward，我们可以重写翻转函数:
+		template <typename F,typename T1,typename T2> void flip(F f,T1 &&t1,T2 &&t2)
+		{
+			f(std::forward<T2>(t2),std::forward<T1>(t1));
+		}
+如果我们调用flip(g,i,42)，i将以int &类型传递给g，42将以int &&类型传递给g。
+注意:
+	与std::move相同，对std::forward不使用using声明是一个好主意，我们将在18.2.3节中解释原因。
+
+16.3	重载与模板
+	函数模板可以被另一个模板或一个普通非模板函数重载。与往常一样，名字相同的函数必须具有不同数量或
+类型的参数。
+	如果涉及函数模板，则函数匹配规则会在以下几方面受到影响:
+		>>>	对于一个调用，其候选函数包括所有模板实参推断成功的函数模板实例。
+		>>>	候选的函数模板总是可行的，因为模板实参推断会排除任何不可行的模板
+		>>>	与往常一样，可行函数(模板与非模板)按类型转换(如果对此调用需要的话)来排序。当然，可
+以用于函数模板调用的类型转换是非常有限的。
+		>>>	与往常一样，如果恰有一个函数提供比任何其他函数都更好的匹配。则选择此函数。但是，如果
+有多个函数提供同样好的匹配，则:
+			---如果同样好的函数中只有一个是非模板函数，则选择此函数
+			---如果同样好的函数中没有非模板函数，而有多个函数模板，且其中一个模板比其他模板更特
+例化，则选择此模板。
+			---否则，此调用将有歧义。
+注意:
+	正确定义一组重载的函数模板需要对类型间的关系及模板函数允许的有限的实参类型转换有深刻的理解。
+
+编写重载模板
+	作为一个例子，我们将构造一组函数，它们在调试中可能很有用。我们将这些调试函数命名为deubg_rep，
+每个函数都返回一个给定对象的string表示。我们首先编写此函数的最通用版本，将它定义为一个模板，接受一
+个const对象的引用:
+		//打印任何我们不能处理的类型
+		template <typename T> string debug_rep(const T &t)
+		{
+			ostringstream ret;
+			ret << t;//使用T的输出运算符打印t的一个表示形式
+			return ret.str();	//返回ret绑定的一个string副本
+		}
+此函数可以用来生成一个对象对应的string表示，该对象可以是任意具备输出运算符的类型:接下来，我们将定义
+打印指针的debug_rep版本:
+		template <typename T> string debug_rep(T *p)
+		{
+			ostringstream ret;
+			ret << "pointer: "<<p;	//打印指针本身的值
+			if(p)
+				ret << " "<<debug_rep(*p);//打印p指向的值
+			else
+				ret<<" null pointer";	//或指出p为空
+			return ret.str();	//返回ret绑定的string的一个副本
+		}
+此版本生成一个string，包含指针本身的值和调用debug_rep获得指针指向的值。注意此函数不能用于打印
+字符指针，因为IO库为char *值定义了一个<<版本。此<<版本假定指针表示一个空字符结尾的字符数组，并
+打印数组的内容而非地址值。我们将在16.3节介绍如何处理字符指针。我们可以这样使用这些函数:
+		string s("hi");
+		cout<<debug_rep(s)<<endl;
+对于这个调用，只有第一个版本的debug_rep是可行的。第二个debug_rep版本要求一个指针参数，但
+在此调用中我们传递的是一个非指针对象。因此编译器无法从一个非指针实参实例化一个期望指针类型的函数
+模板，因此实参推断失败。由于只有一个可行函数，所以此函数被调用。
+	如果我们用一个指针调用debug_rep:
+		cout<<debug_rep(&s)<<endl;
+两个函数都生成可行的实例:
+		>>>	debug_rep(const string* &),由第一个版本的debug_rep实例化而来，T被绑定到
+string *
+		>>>	debug_rep(string *)，由第二个版本的debug_rep实例化而来，T被绑定到string。
+第二个版本的debug_rep的实例是此调用的精确匹配。第一个版本的实例需要进行普通指针到const指针的转换。
+正常函数匹配规则告诉我们应该选择第二个模板，实际编写器确实选择了这个版本。
+
+多个可行模板
+	作为另外一个例子，考虑下面的调用:
+		const string *sp = &s;
+		cout<<debug_rep(sp)<<endl;
+此例中的两个模板都是可行的，而且两个都是精确匹配:
+		>>>	debug_rep(const string* &)，由第一个版本的debug_rep实例化而来，T被绑定到
+string *
+		>>>	debug_rep(const string *),由第二个版本的debug_rep实例化而来，T被被绑定到
+const string *。
+在此情况下，正常函数匹配规则无法区分这两个函数。我们可能觉得这个调用将是有歧义的。但是，根据重
+载函数模板的特殊规则，此调用被解析为debug_rep(T*)，即，更特例化的版本。
+	设计这条规则的原因是，没有它，将无法对一个const的指针调用指针版本的debug_rep。问题在于模
+板debug_rep(const T &)本质上可以用于任何类型，包括指针类型。此模板比debug_rep(T *)更通用，
+后者只能用于指针类型。没有这条规则，传递const的指针的调用永远是有歧义的。
+注意:
+	当有多个重载模板对一个调用提供同样好的匹配时，应该选择最特例化的版本。
+
+非模板和模板重载
+	作为下一个例子，我们将定义一个普通非模板版本的debug_rep来打印双引号包围的string:
+		//打印双引号包围的string
+		string debug_rep(const string &s)
+		{
+			return '"'+s+'"';
+		}
+现在，当我们对一个string调用debug_rep时:
+		string s("hi");
+		cout<<debug_rep(s)<<endl;
+有两个同样好的可行函数:
+		>>>	debug_rep<string>(const string &),第一个模板，T被绑定到string *
+		>>>	debug_rep(const string &)，普通非模板函数
+在本例中，两个函数具有相同参数列表，因此显然两者提供同样好的匹配。但是编译器会选择非模板版本。当
+存在多个同样好的函数模板时，编译器选择最特例化的版本，出于相同原因，一个非模板函数一个函数模板更
+好。
+注意:
+	对于一个调用，如果一个非函数模板与一个函数模板提供同样好的匹配，则选择非模板版本。
+
+重载模板和类型转换
+	还有一种情况我们到目前为止尚未讨论:C风格字符串指针和字符串字面常量。现在有了一个接受string的
+debug_rep版本，我们可能期望一个传递字符串的调用会匹配这个版本，但是，考虑这个调用:
+		cout<<debug_rep("hi world")<<endl;	//调用debug_rep(T *)
+
+本例中所有三个debug_rep版本都是可行的:
+		>>>	debug_rep(const T&)，T被绑定到char[10];
+		>>>	debug_rep(T *)，T被绑定到const char。
+		>>>	debug_rep(const string &)，要求从const char*到string的类型转换。
+对给定的实参来说，两个模板都提供精确匹配－－第二个模板需要进行一次(许可的)数组到指针的转换，而对于
+函数匹配来说，这种转换被认为是精确匹配。非模板版本是可行的，但需要进行一次用户定义的类型转换，因此
+它没有精确匹配那么好，所以两个模板称为可能调用的函数。与之前一样，T*版本更加特例化，编译器会选择它。
+	如果我们希望将字符指针按string处理，可以定义另外两个非模板重载版本:
+		//将字符指针转换为string，并调用string版本的debug_rep
+		string debug_rep(char *p)
+		{
+			return debug_rep(string(p));
+		}
+		string debug_rep(const char *p)
+		{
+			return debug_rep(string(p));
+		
+缺少声明可能导致程序行为异常
+	值得注意的是，为了使char *版本的debug_rep正确工作，在定义此版本时，debug_rep(const string &)
+的声明必须在作用域中。否则，就可能调用错误的debug_rep版本:
+		template <typename T> string debug_rep(const T &t);
+		template <typename T> string debug_rep(T *p);
+		//为了使debug_rep(char *)的定义正确工作，下面的声明必须在作用域中
+		string debug_rep(const string &);
+		string debug_rep(char *p)
+		{
+			//如果接受一个const string &的版本的声明不在作用域中，
+			//返回语句将调用debug_rep(const T&)的T实例化为string的版本
+			return debug_rep(p);
+		}
+通常，如果使用了一个忘记声明的函数，代码将编译失败。但对于重载函数模板的函数而言，则不是这样。如果
+编译器可以从模板实例化出与调用匹配的版本，则缺少的声明就不重要了。在本例中，如果忘记了声明接受string
+参数的debug_rep版本，编译器会默默地实例化接受const T&的模板版本。
+注意:
+	在定义任何函数之前，记得声明所有重载的函数版本，这样就不必担心编译器由于遇到你希望调用的函数而
+实例化一个并非你所需的版本。
+
+16.4	可变参数模板
+	一个可变参数模板就是一个接受可变数目参数的模板函数或模板类。可变数目的参数被称为参数包。存在两
+种参数包:模板参数包，表示零个或多个模板参数；函数参数包，表示零个或多个函数参数。
+	我们用一个省略号来指出一个模板参数或函数参数表示一个包。在一个模板参数列表中，class或typename...
+指出接下来的参数表示零个或多个类型的列表：一个类型名后面跟一个省略号表示零个或多个给定类型的非类型
+参数的列表。在函数参数列表中，如果一个参数的类型是一个模板参数包，则此参数也是一个函数参数包。例如:
+		//Args是一个模板参数包:rest是一个函数参数包
+		//Args表示零个或多个模板类型参数
+		//rest表示零个或多个函数参数
+		template <typename T,typename ... Args> void foo(const T &t,const Args &...rest);
+声明了foo是一个可变从参数函数模板，它有一个名为T的类型参数，和一个名为Args的模板参数包。这个包表
+示零个或多个额外的类型参数。foo的函数参数列表包含一个const &类型的参数，指向T的类型，还包含一个
+名为rest的函数参数包，此包表示零个或多个函数参数。
+	与往常一样，编译器从函数的实参推断模板参数类型。对于一个可变参数模板，编译器还会推断包中参数
+的数目。例如，给定下面的调用:
+		int i = 0;double d = 3.14;string s = "how now brown cow";
+		foo(i,s,42,d);	//包中有三个参数
+		foo(s,42,"hi");	//包中有两个参数
+		foo(d,s);		//包中有一个参数
+		foo("hi");		//空包
+编译器会为foo实例化出四个不同的版本:
+		void foo(const int &,const string &,const int &,const double &);
+		void foo(const string&,const int&,const string&);
+		void foo(const double&,const string&);
+		void foo(const char[3]&);
+在每个实例中，T的类型都是从第一个实参的类型推断出来的。剩下的实参(如果有的话)提供函数额外实参的数目
+和类型。
+
+sizeof...运算符
+	当我们需要知道包中有多少个元素时，可以使用sizeof...运算符。类似sizeof。sizeof...也返回一
+个常量表达式，而且不会对其实参求值:
+		template <typename ...Args> void g(Args ...args){
+			cout<<sizeof...(Args)<<endl;	//类型参数的数目
+			cout<<sizeof...(args)<<endl;	//函数参数的数目
+		}
+
+16.4.1	编写可变参数函数模板
+	如6.2.6节所述，我们可以使用一个initializer_list来定义以一个可接受可变数目实参的函数。但是，
+所有实参都必须具有相同的类型(或它们的类型可以转换为同一个公共类型)。当我们概不知道想要处理的实参的数
+目也不知道它们的类型时，可变参数函数是很有用的。作为一个例子，我们将定义一个函数，它类似较早的error_msg
+函数，差别仅在于新函数的类型也是可变的。我们首先定义一个名为print的函数，它在一个给定流上打印给定
+实参列表的内容。
+	可变参数函数通常是递归的。第一步调用处理包中的第一个实参，然后用剩余实参调用自身。我们的print
+函数也是这样的模式，每次递归调用将第二个实参打印到第一个实参表示的流中。为了终止递归，我们还需要定义
+一个非可变参数的print函数，它接受一个流和一个对象:
+		//用来终止递归并打印最后一个元素的函数
+		//此函数必须在可变参数版本的print定义之前声明
+		template <typename T> ostream &print(ostream &os,const T &t){
+			return os<<t;	//包中最后一个元素之后不打印分隔符
+		}
+		//包中除了最后一个元素之外的其他元素都会调用这个版本的print
+		template <typename T,typename... Args> ostream &print(
+				ostream &os,const T &t,const Args& ...rest)
+		{
+			os<<t<<", ";
+			return print(os,rest ...);	//递归调用，打印其他实参
+		}
+第一个版本的print负责终止递归并打印初始调用中的最后一个实参。第二个版本的print是可变参数版本，它
+打印绑定到t的实参，并调用自身来打印函数参数包中的剩余值。
+	这段程序的关键部分是可变参数函数中对print的调用:
+		return print(os,rest...);	//递归调用，打印其他实参
+我们的可变参数版本的print函数接受三个参数:一个ostream&，一个const T&和一个参数包。而此调用只传递
+了两个实参，其结果是rest中的第一个实参被绑定到t，剩余实参形成下一个print调用的参数包。因此，在每个
+调用中，包中的第一个实参被移除，称为绑定到t的是实参。即，给定:
+		print(cout,i,s,42);	//包中有两个参数
+递归会执行如下:
+		调用							t				rest...
+		print(cout,i,s,42)			i				s,42
+		print(cout,s,42)			s				42
+		print(cout,42)	调用非可变参的print版本
+前两个调用只能与可变参数版本的print匹配，非可变参数版本是不可行的，因为这两个调用分别传递四个和三个
+实参，而非可变参数print只接受两个实参。
+	对于最后一次递归调用print(cout,42)，两个print版本都是可行的。这个调用传递两个是实参，第一个
+实参的类型为ostream&。因此，可变参数版本的print可以实例化为只接受两个参数:一个是ostream &参数，
+另一个是const T&参数。
+	对于最后一个调用，两个函数提供同样好的匹配。但是，非可变参数模板比可变参数模板更特例化，因此编
+译器选择非可变参数版本。
+注意:
+	当定义可变参数版本的print时，非可变参数版本的声明必须在作用域中。否则，可变参数版本会无限递归。
+
+16.4.2	包扩展
+	对于一个参数包，除了获取其大小外，我们能对它做的唯一的事情就是扩展它。当扩展一个包时，我们还要
+提供用于每个扩展元素的模式。扩展一个包就是将它分解为构成的元素，对每个元素应用模式，获得扩展后的列
+表。我们通过在模式右边放一个省略号(...)来触发扩展操作。
+	例如，我们的print函数包含两个扩展:
+		template <typename T,typename ...Args> ostream &print(ostream &os,const T &t,const Args&... rest)	//扩展Args
+		{
+			os<<t<<", ";
+			return print(os,rest...);	//扩展rest
+		}
+第一个扩展操作扩展模板参数包，为print生成函数参数列表。第二个扩展操作出现在对print的调用中。此
+模式为print调用生成实参列表。
+	对Args的扩展中，编译器将模式const Args&应用到模板参数包Args中的每个元素。因此，此模式的
+扩展结果是一个逗号分隔的零个或多个类型的列表，每个类型都形如const type&。例如:
+		print(cout,i,s,42);	//包中有两个参数
+第二个扩展发生在对print的(递归)调用中。在此情况下，模式是函数参数包的名字(即rest)。此模式扩展出
+一个由包中元素组成的、逗号分隔的列表。因此，这个调用等价于:
+		print(os,s,42);
+
+理解包扩展
+	print中的函数参数包扩展仅仅将包扩展为其构成的元素，C++语言还允许更多复杂的扩展模式。例如，
+我们可以编写第二个可变参数函数，对其每个实参调用debug_rep，然后调用print打印string:
+		//在print调用中对每个实参调用debug_rep
+		template <typename... Args> ostream &errorMsg(ostream &os,const Args&... rest){
+			//print(os,debug_rep(a1),debug_rep(a2),...,debug_rep(an))
+			return print(os,debug(rest)...);
+		}
+这个print调用使用了模式debug_rep(rest)。此模式表示我们希望对函数参数包rest中的每个元素调用
+debug_rep。扩展结果将是一个逗号分割的debug_rep调用列表。即，下面调用:
+		print(cerr,fcnName,code.num(),otherData,"other",item);
+就好像我们这样编写代码一样:
+		print(cerr,debug_rep(fcnName),debug_rep(code.num()),
+			  debug_rep(otherData),debug_rep("otherData"),
+			  debug_rep(item));
+与之相对，下面的模式会编译失败:
+		//将包传递给debug_rep:print(os,debug_rep(a1,a2,...,an))
+		print(os,debug(rest...));	//错误:此调用无匹配函数
+这段代码的问题是我们在debug_rep调用中扩展了rest，它等价于:
+		print(cerr,debug_rep(fcnName,code.num(),otherData,"otherData",item));
+在这个扩展中，我们试图用一个五个实参的列表来调用debug_rep，但并不存在与此调用匹配的debug_rep版本。
+debug_rep函数不是可变参数的，而且没有哪个debug_rep版本接受五个参数。
+注意:
+	扩展中的模式会独立地应用于包中的每个元素。
+16.4.3	转发参数包
+	在新标准下，我们可以组合使用可变参数模板与forward机制来编写函数，实现将其实参不变地传递给其他
+函数。作为例子，我们将为StrVec类添加一个emplcae_back成员。标准库容器的emplace_back成员是一个
+可变参数成员模板，它用其实参在容器管理的内存空间中直接构造一个元素。
+	我们为StrVec设计的emplace_back版本也应该是可变参数的，因为string有多个构造函数，参数各不相
+同。由于我们希望能使用string的移动构造函数，因此还需要保持传递给emplace_back的实参的所有类型信息。
+	如我们所见，保持类型信息是一个两阶段的过程。首先，为了保持实参中的类型信息，必须将emplace_back
+的函数参数定义为模板类型参数的右值引用:
+		class StrVec{
+		public:
+			template <class ... Args> void emplace_back(Args&&...);
+			//其他成员的定义
+		};
+模板参数包扩展中的模式是&&，意味着每个函数参数将是一个指向其对应实参的右值引用。
+	其次，当emplace_back将这些实参传递给construct时，我们必须使用forward来保持实参的原始类型:
+		template<class... Args> inline void StrVecc::emplace_back(
+								Args&&... args){
+			chk_n__alloc();	//如果需要的话重新分配StrVec内存空间
+			alloc.construct(first_free++,std::forward<Args>(args)...);
+		}
+emplace_back函数体调用了chk_n_alloc来确保有足够的空间容纳一个新元素，然后调用了construct在
+first_free指向的位置中创建了一个元素。construct调用中的扩展为:
+		std::forward<Args>(agrs)...
+它既扩展了模板参数Args，也扩展了函数参数包args。此模式生成如下形式的元素:
+		std::forwad<Ti>(ti);
+其中Ti表示模板参数包中第i个元素的类型，ti表示函数包中第i个元素，例如，假定svec是一个StrVec，如果
+我们调用
+		svec.emplace_back(10,'c');	//将10个c添加为新的尾元素
+construct调用中的模式会扩展出:
+		std::forward<int>(10),std::forward<char>(c)
+通过在此调用中使用forward，我们保证如果用一个右值调用emplace_back，则construct也会得到
+一个右值。例如，在下面的调用中:
+		svec.emplace_back(s1+s2);	//使用移动构造函数
+传递给emplace_back的实参是一个右值，它将以如下形式传递给construct
+		std::forward<string>(string("the end"))
+forward<string>的结果类型是string &&，因此construct将得到一个右值引用实参。construct会继续
+将此实参传递给string的移动构造函数来创建新元素。
+建议:转发和可变参数模板
+	可变参数函数通常将它们的参数转发给其他函数。这种函数通常具有与我们的emplace_back函数一样的形
+式:
+		//fun有零个或多个参数，每个参数都是一个模板参数类型的右值引用
+		template <typename... Args> void fun(Args&&... args)//将Args扩展为一个右值引用的列表
+		{
+			//work的实参既扩展Args又扩展args
+			work(std::forward<Args>(args)...);
+		}
+这里我们希望将fun的所有是实参转发给另一个名为work的函数，假定由它完成函数的实际工作。类似emplace_back
+中对construct的调用，work调用中的扩展既扩展了模板从参数包也扩展了函数参数包。
+	由于fun的参数是右值引用，因此我们可以传递给它任意类型的实参；由于我们使用std::forward传递这
+些实参，因此它们的所有类型信息在调用work时都会得到保持。
+
+16.5	模板特例化
+	编写单一模板，使之对任何可能的模板实参都是最合适的，都能实例化，这并不总是能办到。在某些情况下，
+通用模板的定义对特定类型是不适合的:通用定义可能编译失败或做得不正确。其他时候，我们也可以利用某些特定
+知识来编写更高效的代码，而不是从通用模板实例化。当我们不能(或不希望)使用模板版本时，可以定义类或函数
+模板的一个特例化版本。
+	我们的compare函数是一个很好的例子，它展示了函数模板的通用定义不适合一个特定类型(即字符指针)
+的情况。我们希望compare通过调用strcmp比较两个字符串指针而非比较指针值。实际上，我们已经重载了
+compare函数来处理字符串字面常量:
+		//第一个版本:可以比较任意两个类型
+		template <typename T>int compare(const T&.const T&);
+		//第二个版本处理字符串字面常量
+		template <size_t N,size_t M> int compare(const char(&)[N],const char(&)[M]);
+但是，只有当我们传递给compare一个字符串字面常量或者一个数组时，编译器才会调用接受两个非类型模
+板参数的版本。如果我们传递给它的字符指针，就会调用第一个版本:
+		const char *p1="hi",*p2="mom";
+		compare(p1,p2);		//调用第一个模板
+		compare("hi","mom");//调用有两个非类型参数的版本
+我们无法将一个指针转换为一个数组的引用，因此当参数是p1和p2时，第二个版本的compare是不可行的。
+	为了处理字符指针(而不是数组)，可以为第一个版本的compare定义一个模板特例化版本。一个特例化
+版本就是模板的一个独立的定义，在其中一个或多个模板参数被指定为特定的类型。
+
+定义函数模板的特例化
+	当我们特例化一个函数模板时，必须为原模板中的每个参数都提供实参。为了指出我们正在实例化一个模板，
+应使用关键字template后跟一个空尖括号对(<>)。空尖括号指出我们将为原模板的所有模板参数提供实参:
+		//compare的特殊版本，处理字符数组的指针
+		template<> int compare(const char* const &sq1,const char * const &sq2)
+		{
+			return strcmp(p1,p2);
+		}
+理解此特例化版本的困难之处是函数参数类型。当我们定义一个特例化版本时，函数参数类型必须与一个先前声
+明的模板中对应的类型匹配。本例中我们特例化:
+		template<typename T> int compare(const T&,const T&);
+其中函数参数为一个const类型的引用。类似类型别名，模板参数类型、指针及const之间的相互作用会令人惊
+讶。
+	我们希望定义此函数的一个特例化版本，其中T为const char *。我们的函数要求一个指向类型const版本
+的引用。一个指针类型的const版本是一个常量指针而不是指向const类型的指针。我们需要在特例化版本中
+使用的类型是const char * const &，即一个指向const char 的const指针的引用。
+
+函数重载与模板特例化
+	当定义函数模板的特别化版本时，我们本质上接管了编译器的工作。即，我们为原模板的一个特殊实例提供了
+定义。重要的是要弄清:一个特例化版本本质上是一个实例，而非函数名的一个重载版本。
+注意:
+	特例化的本质是实例化一个模板，而非重载它。因此，特例化不影响函数匹配。
+我们将一个特殊的函数定义为一个特例化版本还是一个独立的非模板函数，会影响到函数匹配。例如，我们已经定
+义了两个版本的compare函数模板，一个接受数组引用参数，另一个接受const T&。我们还定义了一个特例化版
+本来处理字符指针，这对函数匹配没有影响。当我们对字符串字面常量调用compare时
+		compare("hi","mom");
+对此调用，两个函数模板都是可行的，且提供同样好的(即精确的)匹配。但是，接受字符数组参数的版本更特例化，
+因此编译器会选择它。
+	如果我们将接受字符指针的compare版本定义为一个普通的非模板函数(而不是模板的一个特例化版本)，此
+调用的解析就会不同。在此情况下，将会有三个可行的函数:两个模板和非模板的字符指针版本。所有三个函数都提供
+同样好的匹配。如前所述，当一个非模板函数提供与函数模板同样好的匹配时，编译器会选择非模板版本。
+关键概念:普通作用域规则应用于特例化
+	为了特例化一个模板，原模板的声明必须在作用域中。而且在任何使用模板实例的代码之前，特例化版本的声明
+也必须在作用域中。
+	对于普通类和函数，丢失声明的情况(通常)很容易发现---编译器将不能继续处理我们的代码。但是，如果丢失
+了一个特例化版本的声明，编译器通常可以用原模板生成代码。由于在丢失特例化版本时编译器通常会实例化原模板，
+很容易产生模板及其特例化版本声明顺序导致的错误，而这种错误又很难查找。
+	如果一个程序使用一个特例化版本，而同时原模板的一个实例具有相同的模板实参集合，就会产生错误。但是这种
+错误编译器又无法发现。
+所以最好的方法是:
+	模板及其特例化版本应该声明在同一个头文件中，所有同名模板的声明应该放在前面，然后是这些模板的特例化版本。
+
+类模板特例化
+	除了特例化函数模板，我们还可以特例化类模板。作为一个例子，我们将为标准库hash模板定义一个特例
+化版本。可以用它来将Sales_data对象保存在无序容器中。默认情况下，无序容器使用hash<key_type>来组
+织其元素。为了让我们自己的数据类型也能使用这种默认组织方式，必须定义hash模板的一个特例化版本。一个
+特例化hash类必须定义:
+		>>>	一个重载的调用运算符，它接受一个容器关键字类型对象，返回一个size_t
+		>>>	两个类型成员，result_type和argument_type，分别调用运算符的返回类型和参数类型。
+		>>>	默认构造函数和拷贝赋值运算符。
+在定义此特例化版本的hash时，唯一复杂的地方是:必须在原模板定义所在的命名空间中特例化它。我们将在18.2
+节中介绍更多命名空间的相关内容。现在，我们只需要知道--我们可以向命名空间添加成员。为了达到这一目的，首
+先必须打开命名空间:
+		//打开std命名空间，以便特例化std::hash
+		namespace std{
+		template <> //我们正在定义一个特例化版本，模板参数为Sales_data
+		struct hash<Sales_data>
+		{
+			//用来散列一个无序容器的类型必须要定义下列类型
+			typedef size_t result_type;
+			typedef Sales_data argument_type;	//默认情况下，此类型需要==
+			size_t operator()(const Sales_data& s)const;
+		};
+		size_t hash<Sales_data>::operator()(const Sales_data &s)const
+		{
+			return hash<string>()(s.bookNo)^
+				   hash<unsigned>()(s.units_sold)^
+				   hash<double>()(s.rrevenue);
+		}
+		}//关闭std命名空间:注意:右花括号之后没有分号
+我们的hash<Sales_data>定义以template<>开始，指出我们正在定义一个全特例化的模板。我们正在特例化
+的模板名为hash，而特例化版本为hash<Sales_data>。接下来的类成员是按照特例化hash的要求定义的。
+	类似其他任何类，我们可以在类内或类外定义特例化版本的成员，本例中就是在类外定义的。重载的调用运
+算符必须为给定类型的值定义一个哈希函数。对于一个给定值，任何时候调用此函数都应该返回相同的结果。一个
+好的哈希函数对不相等的对象(几乎总是)应该产生不同的结果。
+	在本例中，我们将定义一个好的哈希函数的复杂任务交给了标准库。标准库为内置类型和很多标准库类型定义
+了hash类的特例化版本。我们使用一个(未命名的)hash<string>对象来生成bookNo的哈希值，用一个hash<unsigend>
+对象来生成units_sold的哈希值，用一个
+hash<double>对象来生成revenue的哈希值。我们将这些结果进行异或运算，形成给定Sales_data对象的
+完整的哈希值。
+	假定我们的特例化版本在作用域中，当将Sales_data作为容器的关键字类型时，编译器就会自动使用此特
+例化版本:
+		//使用hash<Sales_data>和14.3.1节中Sales_data的operator==
+		unordered_multiset<Sales_data> SDset;
+由于hash<Sales_data>使用Sales_data的私有成员，我们必须将它声明为Sales_data的友元:
+		template<class T> class std::hash;	//友元声明所需要的
+		class Sales_data{
+		friend class std::hash<Sales_data>;
+			//其他成员定义，如前
+		};
+这段代码指出特殊实例hash<Sales_data>是Sales_data的友元。由于此实例定义在std命名空间中，我
+们必须记得在friend声明中应该使用std::hash。
+注意:
+	为了让Sales_data的用户能使用hash的特例化版本，我们应该在Sales_data的头文件中定义该特例化
+版本。
+
+类模板部分特例化
+	与函数模板不同，类模板的特例化不必为所有模板参数提供实参。我们可以只指定一部分而非所有模板参
+数，或是参数的一部分而非全部特性。一个类模板的部分特例化本身是一个模板，使用它时用户还必须为那些在
+特例化版本中未指定的模板参数提供实参。
+注意:
+	我们只能部分特例化类模板，而不能部分特例化函数模板。
+在16.2.3节中我们介绍了标准库remove_reference
+类型。该模板是通过一系列的特例化版本来完成其功能的:
+		//原始的，最通用的版本
+		template <class T> struct remove_reference{
+			typedef T type;
+		};
+		//部分特例化版本，将用于左值引用和右值引用
+		template <class T> struct remove_reference<T&>{	//左值引用
+			typedef T type;
+		};
+		template <class T> struct remove_reference<T &&>{
+			typedef T type
+		};
+第一个模板定义了最通用的模板。它可以用任意类型实例化:它将模板实参作为type成员类型。接下来的两个类
+是原始模板的部分特例化版本。
+	由于一个部分特例化版本本质是一个模板，与往常一样，我们首先定义模板参数。类似任何其他特例化版本，
+部分特例化版本的名字原模板的名字相同。对每个未完全确定类型的模板参数，在特例化版本的模板参数列表中
+都有一项与之对应。在类名之后，我们为要特例化的模板参数指定实参，这些实参位于模板名之后的尖括号中。
+这些实参与原始模板中的参数按位置对应。
+	部分实例化版本的模板参数列表是原始模板的参数列表的一个子集或者是一个特例化版本。在本例中，特例
+化版本的模板参数的数目与原始模板相同，但是类型不同。两个特例化版本分别用于左值引用和右值引用类型:
+		int i;
+		//decltype(42)为int，使用原始模板
+		remove_reference<decltype(42)>::type a;
+		//decltype((i))为int &，使用第一个T&部分特例化版本
+		remove_reference<decltype((i))>::type b;
+		//decltype(std::move(i))为int &&，使用第二个(即T&&)部分特例化版本
+		remove_reference<decltype(std::move(i))>::type c;
+三个变量a,b,c均为int类型。
+注意:
+	这里有一个特点是decltype((i))的话，返回的是一个引用，而decltype(i)的话返回的是int。!!也就是
+说(i)是一个左值类型，返回的是引用！！
+
+特例化成员而不是类
+	我们可以只特例化特定成员函数而不是特例化整个模板。例如，如果Foo是一个模板类，包含一个成员Bar，
+我们可以只特例化该成员:
+		template <typename T> struct Foo{
+			Foo(const T &t = T()):mem(t){}
+			void Bar(){/*...*/}
+			T mem;
+		};
+		template<> void Foo<int>::Bar(){//我们正在特例化一个模板，正在特例化Foo<int>的成员Bar
+			//进行应用于int的特例化处理
+		}
+本例中我们只特例化Foo<int>类的一个成员，其他成员将由Foo模板提供:
+		Foo<string> fs;	//实例化Foo<string>::Foo()
+		fs.Bar();	//实例化Foo<string>::Bar()
+		Foo<int> fi;	//实例化Foo<int>::Foo()
+		fi.Bar();	//使用我们特例化版本的Foo<int>::Bar()
+当我们用int之外的任何类型使用Foo时，其成员像往常一样进行实例化。当我们用int使用Foo时，Bar之外的成员
+像往常一样进行实例化。如果我们使用Foo<int>的成员Bar，则会使用我们定义的特例化版本。
