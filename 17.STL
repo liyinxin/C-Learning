@@ -1,0 +1,858 @@
+						第17章	标准库特殊设施
+	第IV部分将介绍C++和标准库的一些附加特性，虽然这些特性在特定情况下很有用过，但并非每个C++程序员
+都需要它们。这些特性分类两类:一类对于求解大规模的问题很有用；另一类适用于特殊问题而非通用问题。针对特
+殊问题的特性既有属于C++语言的，也有属于标准库的。
+	在第十七章中我们介绍四个具有特殊目的的标准库设施:bitset类和三个新标准库设施(tuple、正则表达
+式和随机数)。我们还将介绍IO库中某些不常用的部分。
+	第18章中介绍异常处理、命名空间和多重继承。这些特性在设计大型程序时是最有用的。
+	即使是一个程序员就能编写的足够简单的程序，也能从异常处理机制受益，这也是为什么我们在第5章介绍了
+异常处理的基本知识的原因。但是，对于需要大型团队才能够完成的程序设计问题，运行时错误处理才显得更为
+重要也更难于管理。在第18章中，我们会额外介绍一些有用的异常处理设施。我们还将详细讨论异常是如何处理
+的，并展示如何定义和使用自己的异常类。这一章还会介绍新标准中异常处理方面的改进－－如何指出一个特定
+函数不会抛出异常。
+	大型应用程序通常会使用来自多个提供商的代码。如果提供商不得不将他们定义的名字放置在单一的命名空
+间中，那么将多个独立开发的库组合起来是很困难的(如果能组合的话)。独立开发的库几乎必然会使用与其它库
+相同的名字:对于某个库中定义的名字，如果另一个库中使用了相同的名字，就会引起冲突。为了避免名字冲突，
+我们可以在一个namespace中定义名字。
+	无论何时我们使用一个来自标准库的名字，实际上都是在使用名为std的命名空间中的名字。第18章中将
+会展示如何定义我们自己的命名空间。
+	第19章介绍几种用于特定类别问题的特殊工具和技术，包括如何重定义内存分配机制:C++对运行时类型识别
+(RTTI)的支持－－允许我们在运行时才确定一个表达式的实际类型；以及如何定义和使用指向类成员的指针。类成
+员指针不同于普通数据或函数指针。普通指针仅根据对象或函数的类型而变化，而类成员指针还必须反映成员所属
+的类。我们还将介绍三种附加的聚合类型:联合、嵌套类和局部类。这一章最后将简要介绍一组本质上不可移植的语
+言特性:volatile修饰符、位域以及链接指令。
+
+内容
+-------------------------------
+	17.1	tuple类型
+	17.2	bitset类型
+	17.3	正则表达式
+	17.4	随机数
+	17.5	IO库再探
+-------------------------------
+最新的C++标准极大扩充了标准库的规模和范围。实际上，从1998年的第一版标准到2011年的最新标准，标准库部
+分的篇幅增加了两倍以上。因此，介绍所有C++标准库类的知识大大超出了本书的范围。但是，有4个标准库设施，
+虽然它们比我们已经介绍的其他标准库设施更特殊，但也足够通用，应该放在一本入门书籍中进行介绍。这4个标准
+库设施是:tuple、bitset、随机数生成以及正则表达式。此外，我们还将介绍IO库中一些具有特殊目的的部分。
+	标准库占据了新标准文本将近三分之一的篇幅。虽然我们不能详细介绍所有标准库设施。但仍有一些标准库设
+施在很多应用中都是有用的:tuple、bitset、正则表达式以及随机数。我们还将介绍一些附加的IO库功能:格式
+控制、未格式化IO和随机访问。
+
+17.1	tuple类型
+	tuple是类似pair的模板。每个pair的成员类型都不相同，但每个pair都恰有两个成员。不同tuple类型的
+成员也不相同，但一个tuple可以有任意数量的成员。每个确定的tuple类型的成员数目是固定的，但一个tuple
+类型的成员数目可以与另一个tuple类型不同。
+	当我们希望将一些数据组合成单一对象，但又不想麻烦地定义一个新数据结构来表示这些数据时，tuple是非
+常有用的。表17.1列出了tuple支持的操作。tuple类型及其伴随类型和函数都定义在tuple头文件中。
+
+				表17.1:		tuple支持的操作
+tuple<T1,T2,....,Tn>t;				t是一个tuple，成员数为n，第i个成员的类型为Ti
+									所有成员都进行值初始化
+tuple<T1,T2,....,Tn<t(v1,v2,...,vn)	t是一个tuple，成员类型为T1...Tn，每个成员用
+									对应的初始值vi进行初始化。此构造函数是explicit的
+make_tuple(v1,v2,....,vn)			返回一个给定初始值初始化的tuple。tuple的类型
+									从初始值的类型推断
+									
+									当两个tuple具有相同数量的成员且成员对应相等时，
+	t1 == t2						两个tuple相等。这两个操作使用成员的==运算符来
+	t1 != tw						完成。一旦发现某对成员不等，接下来的成员就不用
+									比较了
+	t1 relop t2						tuple的关系运算使用字典序。两个tuple必须具有
+									相同数量的成员，使用<运算符比较t1的成员和t2的
+									对应的成员
+
+	get<i>(t)						返回t的第i个数据成员的引用；如果t是一个左值，
+									结果是一个左值引用；否则，结果是一个左值引用。
+									tuple的所有成员都是public的
+
+									一个类模板，可以通过一个tuple类型来初始化。它
+	tuple_size<tupleType>::value	有一个名为value的public　constexpr static
+									数据成员，类型为size_t，表示给定tuple类
+									型中成员的数量
+
+tuple_element<i,tupleType>::type	一个类模板，可以通过一个整型常量和一个tuple类型
+									来初始化。它有一个名为type的public成员，表示给
+									定tuple类型中指定成员的类型
+注意:
+	我们可以将tuple看作一个"快速而随意"的数据结构。
+
+17.1.1	定义和初始化tuple
+	当我们定义一个tuple时，需要指出每个成员的类型:
+		tuple<size_t,size_t,size_t>threeD;	//三个成员都设置为0
+		tuple<string,vector<double>,int,list<int>> 
+			someVal("constants",{3.14,2.718},42,{0,1,2,3,4,5})
+当我们创建一个tuple对象时，可以使用tuple的默认构造函数，他会对每个成员进行值初始化；也可以像本例中
+初始化someVal一样，为每个成员提供一个初始值。tuple的这个构造函数是explicit的，因此我们必须使用直
+接初始化语法:
+		tuple<size_t,size_t,size_t> threeD = {1,2,3};	//错误，拷贝初始化
+		tuple<size_t,size_t,size_t>threeD(1,2,3);	//正确：使用构造函数
+	类似make_pair函数，标准库定义了make_tuple函数，我们还可以用它来生成tuple对象:
+		//表示书店交易记录的tuple，包含:ISBN、数量和每册书的价格
+		auto item = make_tuple("0-999-22334-X",3,20.00);
+类似make_pair,make_tuple函数使用初值的类型来推断tuple的类型。在本例中，item是一个tuple，类
+型为tuple<const char*,int,double>。
+
+访问tuple的成员
+	一个pair总是有两个成员，这样，标准库就可以为他们命名first和second。但这种命名方式对tuple是
+不可能的，因为一个tuple类型的成员数目是没有限制的。因此，tuple的成员都是未命名的。要访问一个tuple
+的成员，就要使用一个名为get的标准库函数模板。为了使用get，我们必须指定一个显示模板实参，它指出我们
+想要访问第几个成员。我们传递给get一个tuple对象，它返回指定成员的引用:
+		auto book = get<0>(item);	//返回item的第一个成员
+		auto cnt = get<1>(item);	//返回item的第二个成员
+		auto price = get<2>(item)/cnt;	//返回item的最后一个成员
+		get<2>(item) *= 0.8;		//打折20%
+尖括号中的值必须是一个整型常量表达式。与往常一样，我们从0开始计数，意味这get<0>是第一个成员。
+	如果不知道一个tuple准确的类型细节信息，可以用两个辅助类模板来查询tuple成员的数量和类型:
+		typedef decltype(item) trans;
+		//返回trans类型对象中成员的数量
+		size_t sz = tuple_size<trans>::vlaue;	//返回3
+		//cnt的类型与item中第二个成员相同
+		tuple_element<1,trans>::type cnt = get<1>(item);	//cnts是一个int
+为了使用tuple_size或tuple_element，我们需要知道一个tuple对象的类型。与往常一样，确定一个对象
+的类型的最简单的方法就是使用decltype。在本例中，我们使用decltype来为item类型定义一个类型别
+名，用它来实例化两个模板。
+	tuple_size有一个名为value的public static数据成员，它表示给定tuple中成员的数量。tuple_element
+模板除了一个tuple类型外，还接受一个索引值。它有一个名为type的public类型成员，表示给定tuple类型
+中指定成员的类型。类似get，tuple_element所使用的索引也是从0开始计数的。
+
+关系和相等运算符
+	tuple的关系和相等运算符的行为类型容器的对应操作。这些运算符逐对比较左侧tuple和右侧tuple的成
+员。只有两个tuple具有相同数量的成员时，我们才可以比较它们。而且，为了使用tuple的相等或不等运算符，
+对没对成员使用==运算符必须都是合法的:为了使用关系运算符，对每对成员使用<必须都是合法的。例如:
+		tuple<string,string>duo("1","2");
+		tuple<size_t,size_t>twoD(1,2);
+		bool b = (duo == twoD);	//错误;不能比较size_t和string
+		tuple<size_t,size_t,size_t>threeD(1,2,3);
+		b = (twoD < threeD);	//错误:成员数量不同
+		tuple<size_t,size_t> origin(0,0);
+		b = (origin<twoD);	//正确:bool为true
+注意:
+	由于tuple定义了<和==运算符，我们可以将tuple序列传递给算法，并且可以在无序容器中将tuple作
+为关键字类型。
+
+17.1.2	使用tuple返回多个值
+	tuple的一个常见用途是从一个函数返回多个值。例如，我们的书店可能是多家连锁书店中的一家。每家书
+店都有一个销售记录文件，保存每本书近期的销售数据。我们可能希望在所有书店中查询某本书的销售情况。
+	假定每家书店都有一个销售记录文件。每个文件都将每本书的所有销售记录存放在一起。进一步假定已有一
+个函数可以读取这些销售记录文件，为每个书店创建一个vector<Sales_data>，并将这些vector
+保存在vector的vector中:
+		//files中的每个元素保存一家书店的销售记录
+		vector<vector<Sales_data>>files
+我们将编写一个函数，对于一本给定的书，在files中搜索出售过这本书的书店。对每家有匹配销售记录的书店，
+我们将创建一个tuple来保存这家书店的索引和两个迭代器。索引指出了书店在files中的位置，而两个迭代器
+则标记了给定书籍在此书店的vector<Sales_data>中第一条销售记录和最后一条销售记录之后的位置。
+
+返回tuple的函数
+	我们首先编写查找给定书籍的函数，此函数的参数是刚刚提到的vector的vector以及一个表示书籍
+ISBN的string。我们的函数将返回一个tuple的vector，凡是销售了给定书籍的书店，都在vector中有对
+应的一项:
+		//matches有三个成员:一家书店的索引和两个指向书店vector中元素的迭代器
+		typedef tuple<vector<Sales_data>>::size_type,
+					  vector<Sales_data>::const_iterator,
+					  iterator<Sales_data>::const_iterator>> matches;
+		//files保存每家书店的销售记录
+		//findBook返回一个vector，每家销售了给定书籍的书店在其中都有一项
+		vector<matches> findBook(const vector<vector<Sales_data>> &files,
+								 const string &book)
+		{
+			vector<matches> ret;	//初始化为空vector
+			//对于每家书店，查找与给定书籍匹配的记录范围(如果存在的话)
+			for(auto it = files.cbegin();it != files.cend();++it)
+			{
+				//查找具有相同ISBN的Sales_data范围
+				auto found = equal_range(it->cbegin(),it->cend(),book,compareIsbn);
+				if(found.first != found.second)	//此书店销售了给定书籍
+					ret.push_back(make_tuple<it-files.cbegin().found.first,found.second));
+			}
+			return ret;	//如果没有找到匹配记录的话，则ret为空
+		}
+for循环遍历files中的元素，每个元素都是一个vector。在for循环内，我们调用了一个名为equal_range
+的标准库算法，它的功能与关联容器的同名成员类似。equal_range的前两个实参是表示输入序列的迭代器。第
+三个参数是一个值。默认情况下，equal_range使用<运算符来比较元素。由于Sales_data没有<运算符，因
+此我们传递给它一个指向compareIsbn函数的指针。
+	equal_range算法返回一个迭代器pair，表示元素的范围。如果未找到book，则两个迭代器相等，表示
+空范围。否则，返回的pair的first成员将表示第一条匹配的记录，second则表示匹配的尾后位置。
+
+使用函数返回的tuple
+	一旦我们创建了vector保存包含匹配的销售记录的书店，就需要处理这些记录了。在此程序中，对每家包
+含匹配销售记录的书店，我们将打印其汇总销售信息:
+		void reportResults(istream &in,ostream &os,
+							const vector<vector<Sales_data>> &files)
+		{
+			string s;	//要查找的书
+			while(in >> s){
+				auto trans = findBook(files,s);	//销售了这本书的书店
+				if(trans.empty()){
+					cout<< s << "not found in any stores"<<endl;
+					continue;	//获得下一本要查找的书，返回到while
+				}
+				for(const auto &store : trans)
+					os<<"store "<<get<0>(store)<<" sales: "
+					   <<accumulate(get<1>(store),
+									get<2>(store),
+									Sales_data(s))<<endl;
+			}
+		}
+while循环反复读取名为int的istream来获得下一本要处理的书。我们调用findBook来检查s是否存在，并
+将结果赋予trans。我们使用auto来简化trans类型的代码编写，它是一个tuple的vector。
+	如果trans为空，表示没有关于s的销售记录。在此情况下，我们打印一条信息并返回，执行下一步while
+循环来获取下一本要查找的书。
+	for循环将store绑定到trans中的每个元素。由于不希望改变trans中的元素，我们将store声明为const
+的引用。我们使用get来打印相关数据:get<0>表示对应书店的索引、get<1>表示第一次交易记录的迭代器、
+get<2>表示尾后位置的迭代器。
+	由于Sales_data定义了加法运算符，因此我们可以用标准库的accumulate算法来累加销售记录。我
+们用Sales_data的接受一个string参数的构造函数来初始化一个Sales_data对象，将此对象传递给
+accumulate作为求和的起点。此构造函数用给定的string初始化bookNo，并将units_sold和revenue
+成员置为0。
+accumulate函数的第三个参数是作为计算的起始点的:
+		int sum = accumulate(vec.begin() , vec.end() , 42);
+比方说这个，其中vec是int类型的vector，那么得到的结果就是42+vector中所有的int类型的数据
+		string sum = accumulate(v.begin() , v.end() , string(" ")); 
+这个的话，就是相应的v中所有的字符串连接起来了。
+所以这里使用Sales_data(s)创建一个bookNo是s的对象，然后使用Sales_data中的加法函数，去把所有
+bookNo是s的对象全部加起来。但是用Sales_data()的话，就不可以了，因为加法是用bookNo相同的才去加
+的，所以必须得使用bookNo为s的对象才可以。
+
+17.2	bitset
+	在4.8节中我们介绍了将整型运算对象当作二进制位集合处理的一些内置运算符。标准库还定义了bitset
+类，使得位运算的使用更为容易，并且能够处理超过最长整型类型大小的位集合。bitset类定义在头文件bitset
+中。
+
+17.2.1	定义和初始化bitset
+	表17.2列出了bitset的构造函数。bitset类是一个类模板，它类似array类，具有固定的大小。当我
+们定义一个bitset时，需要声明它包含多少个二进制位:
+		bitset<32> bitvec(10);	//32位:低位为1，其他位为0
+大小必须是一个常量表达式。这条语句定义bitvec为一个包含32位的bitset。就像vector包含未命名的元
+素一样，bitset中的二进制位也是未命名的，我们通过位置来访问它们。二进制位的位置是从0开始编号的。
+因此，bitvec包含编号从0到31的32个二进制位。编号从0开始的二进制位被称为低位(low-order)，编号到
+31结束的二进制位被称为高位。
+			17.2:	初始化bitset的方法
+	bitset<n> b;					b有n位:每一位为0。此构造函数是一个constexpr
+
+									b是unsigned long long值u的n位的拷贝。如果n大于
+	bitset<n> b(u);					unsigned long long的大小，则b中超出unsigned
+									long long的高位被置为0。此构造函数是一个constexpr
+
+									b是string　s从位置pos开始m个字符的拷贝。s只能包含字符
+	bitset<n>b(s,pos,m,zero,one)	zero或one；如果s包含其他字符，构造函数会抛出
+									invalid_argument异常。字符在b中分别保存为zero
+									和one。pos默认为0，m默认为string::npos,zero默认为
+									'0'，one默认为'1'
+									与上一个构造函数相同，但从cp指向的字符数组中拷贝字符。
+									如果未提供m，则cp必须指向一个C风格字符串。如果提供了
+	bitset<n>b(cp,pos,m,zero,one)	m,则从cp开始必须至少有m个zero或one字符，因为未提供
+									m的话，必须得有终止的地方，所以cp指向C风格的字符串，
+									可以有\0结尾。
+接受一个string或一个字符指针的构造函数是explicit的。在新标准中增加了为0和1指定其他字符的功能。
+
+用unsigned值初始化bitset
+	当我们使用一个整型值来初始化bitset时，此值将被转换为unsigned long long类型并被当做位
+模式来处理。bitset中的二进制位将是此模式的一个副本。如果bitset的大小大于一个unsigned long
+long中的二进制位数，则剩余的高位被置为0。如果bitset大大小小于一个unsigned long long中的二进制
+位数，则只使用给定值中的低位，超出bitset大小的高位被丢弃。
+		//bitvecl比初始值小了初始值中的高位被丢弃
+		bitset<13>bitvecl(0xbeef);	//二进制位序列为1111011101111，本来的是1011 1110 1110 1111
+		//bitvec2比初始化值大；它的高位被置为0
+		bitset<20> bitvec2(0xbeef);	//二进制位序列为0000 1011 1110 1110 1111
+		//在64位机器中，long long 0UUL是64个比特，因此!~0ULL是64个1
+		bitset<128> bitvec3(~0ULL);	//0-63为为1;63-127位为0
+
+从一个string初始化bitset
+	我们可以从一个string或一个字符数组指针来初始化bitset。两种情况下，字符都直接表示位模式。与往
+常一样，当我们使用字符串表示数时，字符串中下标最小的字符对应高位，反之亦然:
+		bitset<32> bitvec4("1100");	//2、3位为1剩余两位为0
+如果string包含的字符数比bitset少，则bitset的高位被置位0。
+注意:
+	string的下标编号习惯与bitset恰好相反；string中下标最大的字符(最右字符)用来初始化bitset
+中的低位(下标为0的二进制位)。当你用一个string初始化一个bitset时，要记住这个差别。
+	我们不必使用整个string来作为bitset的初始值，可以只用一个子串作为初始值:
+		string str("1111111000000011001101");
+		bitset<32> bitvec5(str,5,4);	//从str[5]开始的四个二进制位，1100
+		bitset<32> bitvec6(str,str.size()-4);//使用最后四个字符
+此处，bitvec5用str中从str[5]开始的长度为4的子串进行初始化。与往常一样，子串的最右字符表示最低
+位。因此，bitvec5中第3位到第0位被设置为1100，剩余位被设置为0。传递给bitvec6的初始值是一个
+string和一个开始位置，因此bitvec6用str中倒数第四个字符开始的子串进行初始化。bitvec6中剩余二
+进制位被初始化为0。下图说明了这两个初始化过程。
+		从str拷贝的元素								用str初始化
+	str											bitvec5
+    |1||1||1||1||1||1||1||0||0||0||...|			|....||0||0||0||1||1||0||0|
+				    |		 	|							 |           | 
+				(首元素)str[5] str[5+4](尾元素)			  bitvec5[4]  bitvec[0]
+
+17.2.2	bitset操作
+	bitset操作定义了多种检测或设置一个或多个二进制位的方法。bitset类还支持我们在4.8节中介绍
+过的位运算符。这些运算符用于bitset对象的含义与内置运算符用于unsigned运算对象相同。
+			表17.3:	bitset操作
+	b.any()					b中是否存在置位的二进制位
+	b.all()					b中所有位置都置位了吗
+	b.none()				b中不存在置位的二进制位吗
+	b.count()				b中置位的位数
+	b.size()				一个constexpr函数，返回b中的位数
+	b.test(pos)				若pos位置的位是置位的，则返回true，否则返回false
+	b.set(pos,v)			将位置pos处的位置设置为bool值v。v默认为true。如果
+	b.set()					未传递实参，则将b中所有位置位
+
+	b.reset(pos)			将位置pos出的复位或将b中所有位复位
+	b.reset()
+
+	b.flip(pos)				改变位置pos处的位的状态或改变b中每一位的状态
+	b.flip()
+
+	b[pos]					访问b中位置pos处的位：如果b是const的，则当
+							该位置时b[pos]返回一个bool值true，否则返回flase
+
+	b.to_ulong()			返回一个unsigned long或一个unsigned long的值
+	b.to_ullong()			其位模式与b相同。如果b中位模式不能放入指定的结果类
+							型。则抛出一个overflow_error异常
+
+	b.to_string(zero,one)	返回一个string，表示b中的位模式。zero和one的默认
+							值分别为0和1，用来表示b中的0和1
+	os<<b					将b中二进制位打印为字符1或0。打印到流os
+	is>>b					从is读取字符存入b。当下一个字符不是1或0时，或是已
+							经读入b.size()个位时，读取过程停止。
+	count、size、all、any和none等几个操作都不接受参数，返回整个bitset的状态。其他操作---set、
+reset和flip则改变bitset的状态。改变bitset状态的成员函数都是重载的。对每个函数，不接受参数的版本对
+整个集合执行给定的操作:接受一个位置参数的版本则对指定位执行操作:
+		bitset<32> bitvec(1U);		//32位:低位为1，剩余位为0
+		bool is_set = bitvec.any();		//true，因为有1位置位
+		bool is_not_set = bitvec.none();//false,因为有1位置位了
+		bool all_set = bitvec.all();	//false，因为只有1位置位
+		size_t onBits = bitvec.count();	//返回1
+		size_t sz = bitvec.size();		//返回32
+		bitvec.flip();					//翻转bitvec中的所有位
+		bitvec.reset();					//将所有位复位
+		bitvec.set();					//将所有位置位
+当bitset对象的一个多个位置位(即，等于1)时，操作any返回true。相反，当所有位复位时，none返回true。
+新标准引入了all操作，当所有位置位时返回true。操作count和size返回size_t类型的值，分别表示对象中
+置位的位数或总位数。函数size是一个constexpr函数，因此可以用在要求常量表达式的地方。
+	成员flip、set、reset及test允许我们读写指定位置的位:
+		bitvec.flip(0);	//翻转第一位
+		bitvec.set(bitvec.size()-1);//置位最后一位
+		bitvec.set(0,0);	//复位第一位
+		bitvec.reset(i);	//复位第i位
+		bitvec.test(0);	//返回flase，因为第一位是复位的
+下标运算符对const属性进行了重载。const版本的下标运算符在指定位置位时返回true，否则返回false。非
+const版本返回bitset定义的一个特殊类型，它允许我们操作指定位的值:
+		bitvec[0]= 0;		//将第一位复位
+		bitvec[31]=bitvec[0];	//将最后一位设置为与第一位一样
+		bitvec[0].flip();	//翻转第一位
+		~bitvec[0];			//等价操作，也是翻转第一位
+		bool b = bitvec[0];	//将bitvec[0]的值转换为bool类型
+
+提取bitset的值
+	to_ulong和to_ullong操作都返回一个值，保存了与bitset对象相同的位模式。只有当bitset的大小
+小于等于对应大小(to_ulong为unsigned long,to_ullong为unsigned long lon)时，我们才能
+使用这两个操作:
+		unsigned long ulong = bitvec3.to_ulong();
+		cout<<"ulong = "<<ulong<<endl;
+注意:
+	如果bitset中的值不能放入给定类型中，则这两个操作会抛出一个overflow_error异常。
+
+bitset的IO运算符
+	输入运算符从一个输入流读取字符，保存到一个临时的string对象中。直到读取的字符数达到对应bitset
+的大小时，或是遇到不是1或0的字符时，或是遇到文件尾或输入错误时，该读取过程才停止。随即用临时string
+对象来初始化bitset。如果读取的字符数小于bitset的大小，则与往常一样，高位将被置为0。
+	输出运算符打印一个bitset对象中的位模式:
+		bitset<16> bits;
+		cin >> bits;	//从cin读取最多16个0或1
+		cout<<"bits :"<< bits<<endl;	//打印刚刚读取的内容
+
+使用bitset
+	为了说明如何使用bitset，我们重新实现4.8节中的评分程序，用bitset替代unsigned long表示30
+个学生的测验结果---"通过/失败":
+		bool status;
+		//使用位运算符的版本
+		unsigned long quizA = 0;		//此值被当作位集合使用
+		quizA |= 1UL << 27;		//指出第27个学生通过了测验
+		status = quizA & (1UL << 27);	//检查第27个学生是否通过了测验
+		quizA &= ~(1UL<<27);	//第27个学生未通过测验
+		//使用标准库类bitset完成等价的工作
+		bitset<30> quizB;		//每个学生分配一位，所有位都被初始化为0
+		quizB.set(27);			//指出第27个学生通过了测验
+		status = quizB[27];		//检查第27个学生是否通过了测验
+		quizB.reset(27);		//第27个学生未通过测验
+
+17.3	正则表达式
+	正则表达式(regular expression)是一种描述字符序列的方法，是一种极其强大的计算工具。但是，
+用于定义正则表达式的描述语言已经大大超出了本书的范围。因此，我们重点介绍如何使用C++正则表达式库(
+RE库),它是新标准库的一部分。RE库定义在头文件regex中，它包含多个组件，列于表17.4中:
+				表17.4:正则表达式库组件
+	regex			表示有一个正则表达式的类
+	regex_match		将一个字符序列与一个正则表达式匹配
+	regex_search	寻找第一个与正则表达式匹配的子序列
+	regex_replace	使用给定格式替换一个正则表达式
+	sregex_iterator	迭代器适配器，调用regex_search来遍历一个string中所有匹配的子串
+	smatch			容器类，保存在string中搜索的结果
+	ssub_match		string中匹配的子表达式的结果
+regex类表示一个正则表达式。除了初始化和赋值外，regex还支持其他一些操作。表17.6列出了regex支持
+的操作。
+	函数regex_match和regex_search确定一个给定字符序列与一个给定regex是否匹配。如果整个输入序
+列与表达式匹配，则regex_match函数返回true；如果输入序列中一个子串与表达式匹配，则regex_search
+函数返回true。还有一个regex_replace函数，我们将在17.3.4中介绍。
+	表17.5列出了regex的函数的参数。这些函数都返回bool值，且都被重载了:其中一个版本接受一个类型
+为smatch的附加参数。如果匹配成功，这些函数将成功匹配的相关信息保存在给定的smatch对象中。
+		表17.5:		regex_search和regex_match的参数
+注意:这些操作返回bool值，指出是否找到匹配
+							在字符序列seq中查找regex对象r中的正则表达式。seq可以是一个
+		(seq,r,mft)			string、表示范围的一对迭代器以及一个指向空字符结尾的字符数组
+							的指针
+		(seq,m,r,mft)		m是一个match对象，用来保存匹配结果的相关细节。m和seq必须具
+							有兼容的类型
+							mft是一个可选的regex_constant::match_flag_type值。表
+							17.13描述了这些值，它们会影响匹配过程
+
+17.3.1	使用正则表达式库
+	我们从一个非常简单的例子开始－－查找违反众所周知的拼写规则"i除非在c之后，否则必须在e之前"的
+单词:
+		//查找不在字符c之后的字符串ei
+		string pattern("[^c]ei");
+		//我们需要包含pattern的整个单词
+		pattern = "[[:alpha:]]*" + pattern + "[[:alpha:]]*";
+		regex r(pattern);		//构造一个用于查找模式的regex
+		smatch results;			//定义一个对象保存搜索结果
+		//定义一个string保存与模式匹配和不匹配的文本
+		string test_str = "recepit freind theif receive";
+		//用r在test_str中查找与pattern匹配的子串
+		if(regex_search(test_str,results,r))	//如果有匹配子串
+			cout<<results.str()<<endl;	//打印匹配的单词
+我们首先定义了一个string来保存希望查找的正则表达式。正则表达式[^c]表明我们希望匹配任意不是'c'的
+字符，而[^c]ei指出我们想要匹配这种字符后接ei的字符串。此模式描述的字符串恰好包含三个字符。我们想
+要包含此模式的单词的完整内容。为了与整个单词匹配，我们还需要一个正则表达式与这个三字母模式之前和之
+后的字母匹配。
+	这个正则表达式包含零个或多个字母后接我们的三字母的模式，然后再接零个或多个额外的字母。默认情
+况下，regex使用的正则表达式语言是ECMAScript。在ECMAScript中，模式[[:alpha:]]匹配任意字母，
+符号+和*分别表示我们希望"一个或多个"或"零个或多个"匹配。因此[[:alpha:]]*将匹配零个或多个字母。
+	将正则表达式存入pattern后，我们用它来初始化一个名为r的regex对象。接下来我们定义了一个string，
+用来测试正则表达式。我们将test_str初始化为与模式匹配的单词(如"freind"和"thief")和不匹配的单
+词(如"recepit"和"receive")。我们还定义了一个名为results的smatch对象，它将被传递给regex_search。
+如果找到匹配子串，results将会保存匹配位置的细节信息。
+	接下来我们调用了regex_search。如果它找到匹配子串，就返回true。我们用results的str成员来打印
+test_str中与模式匹配的部分。函数regex_search在输入序列中只要找到一个匹配子串就会停止查找。因此，
+程序的输出将是:
+			freind
+17.3.2节中将会介绍如何查找输入序列中所有的匹配子串。
+
+指定regex对象的选项
+	当我们定义一个regex或是对一个regex调用assign为其赋予新值时，可以指定一些标志来影响regex
+如何操作。这些标志控制regex对象的处理过程。表17.6列出的最后6个标志指出编写正则表达式所用的语言。
+对这个6个标志，我们必须设置其中之一，且只能设置一个。默认情况下，ECMASCripte标志被设置，从而
+regex会使用ECMA-262规范，这也是很多浏览器所使用的正则表达式语言:
+			表17.6:		regex(和wregex)选项
+								re表示一个正则表达式，它可以是一个string、一个表示字符
+								范围的迭代器对、一个指向空字符结尾的字符数组的指针、一个
+		regex r(re)				字符指针和一个计数器或一个花括号包围的字符列表。f是指出
+		regex r(re,f)			对象如何处理的标志。f通过下面列出的值来设置。如果未指定
+								f，其默认值为ECMAScipt
+
+								将r1中的正则表达式替换为re。re表示一个正则表达式，它可以
+		r1 = re					是另一个regex对象、一个string、一个指向空字符结尾的字符
+								数组的指针或是一个花括号包围的字符列表
+		r1.assign(re,f)			与使用赋值运算符(=)效果相同：可选的标志f业与regex的构造
+								函数中对应的参数含义相同
+		r.mark_count()			r中子表达式的数目，
+		r.flags()				返回r的标志集
+注:构造函数和赋值操作可能抛出类型为regex_error的异常
+					定义regex时指定的标志
+定义在regex和regex_constants::syntax_option_type中
+		icase			在匹配过程中忽略大小写
+		nosubs			不保存匹配的子表达式
+		optimize		执行速度优于构造速度
+		ECMAScript		使用ECMA-262指定的语法
+		basic			使用POSIX基本的正则表达式语法
+		extended		使用POSIX扩展的正则表达式语法
+		awk				使用POSIX版本的awk语言的语法
+		grep			使用POSIX版本的grep的语法
+		egrep			使用POSIX版本的egrep的语法
+其他3个标志允许我们指定正则表达式处理过程中与语言无关的方面。例如，我们可以指出希望正则表达式以
+大小写无关的方式进行匹配。
+	作为一个例子，我们可以用icase标志查找具有特定扩展名的文件名。大多数操作系统都是按大小写无
+关的方式来识别扩展名的---可以将一个C++程序保存在.cc结尾的文件中，也可以保存在.Cc、.cＣ或是.CC
+结尾的文件中、效果是一样的。如下所示，我们可以编写一个正则表达式来识别上述任何一种扩展名以及其他
+普通文件扩展名:
+		//一个或多个字母或数字字符后接一个'.'再接"cpp"或"cxx"或"cc"
+		regex r("[[:alpha:]]+\\.(cpp|cxx|cc)$",regex::icase);
+		smatch results;
+		string filename;
+		while(cin>>filename){
+			if(regex_search(filename,results,r))
+				cout<<results.str()<<endl;
+		}
+此表达式将匹配这样的字符串:一个或多个字母或数字后接一个句点再接三个文件扩展名之一。这样，此正则表
+达式将会匹配指定的文件扩展名而不理会大小写。
+	就像C++语言中有特殊字符一样，正则表达式语言也通常有特殊字符。例如，字符点(.)通常匹配任意字
+符。与C++一样，我们可以在字符之前放置一个反斜线来去掉其特殊含义。由于反斜线也是C++中的一个特殊
+字符，我们在字符串字面常量中必须连续使用两个反斜线来告诉C++我们相要一个普通反斜线字符。因此，为了
+表示与句点符匹配的正则表达式，必须写成\\.(第一个反斜线去掉C++语言中反斜线的特殊含义，即，正则
+表达式字符串为\.，第二个反斜线则表示在正则表达式中去掉.的特殊含义)。
+
+指定或使用正则表达式时的错误
+	我们可以将正则表达式本身看作用一种简单程序设计语言编写的"程序"。这种语言不是由C++编译器解释
+的。正则表达式是在运行时，当一个regex对象被初始化或被赋予一个新模式时，才被"编译"的。与任何其他
+程序设计语言一样，我们用这种语言编写的正则表达式也可能有错误。
+注意:
+	需要意识到的非常重要的一点是，一个正则表达式的语法是否正确是在运行时解析的。
+如果我们编写的正则表达式存在错误，则在运行时标准库会抛出一个类型为regex_error的异常。类似标准异
+常类型，regex_error有一个what操作来描述发生了什么错误。regex_error还有一个名为code的成员，
+用来返回某个错误类型对应的数值编码。code返回的值是由具体实现定义的，RE库能抛出的标准错误如表17.7
+所示。
+	例如，我们可能在模式中意外遇到一个方括号:
+		try{
+			//错误:alnum漏掉了右括号，构造函数会抛出异常
+			regex r("[[:alnum:]+\\.(cpp|cxx|cc)",regex::icase);
+		}catch(regex_error e){
+			cout<< e.what()<<"\ncode"<<e.code()<<endl;
+		}
+当这段程序在我们的系统上运行时，程序会生成:
+		regex_error(error_brack):
+		The expression contained mismatched [ and ]
+		code: 4
+				表17.7:	正则表达式错误类型
+	定义在regex和regex_constants::error_type中
+		error_collate		无效的元素校对请求
+		error_ctype			无效的字符类
+		error_escape		无效的转义字符或无效的尾置转义
+		error_backref		无效的向后引用
+		error_brack			不匹配的方括号([或])
+		error_paren			不匹配的小括号((或))
+		error_brace			不匹配的花括号({或})
+		error_badbrace		{}中无效的范围
+		error_range			无效的字符范围(如[z-a])
+		error_space			内存不足，无法处理此正则表达式
+		error_badrepeat		重复字符(*、?、+或{)之前没有有效的正则表达式
+		error_compleity		要求的匹配过去复杂
+		error_stack			栈空间不足，无法处理匹配
+我们编译器定义了code成员，返回表17.7列出错误类型的编号，与往常一样，编号从0开始。
+建议:避免创建不必要的正则表达式
+	如我们所见，一个正则表达式所表示的"程序"是在运行时而非编译时编译的。正则表达式的编译是一个非常
+慢的操作，特别是在你使用了扩展的正则表达式语法或是复杂的正则表达式时。因此，构造一个regex对象以及向
+一个已存在的regex赋予一个新的正则表
+达式可能是非常耗时的。为了最小化这种开销，你应该努力避免创建很多不必要的regex。特别是，如果你在一个
+循环中使用正则表达式，应该在循环外创建它，而不是在每步迭代时都编译它。
+
+正则表达式类和输入序列类型
+	我们可以在搜索多种类型的输入序列。输入可以是普通的char数据或wchar_t数据，字符可以保存在标准库
+string中或是char数组中(或是宽字符版本，wstring或wchar_t数组中)。RE为这些不同的输入序列类型都定
+义了对应的类型。
+	例如，regex类保存类型char的正则表达式。。标准库还定义了一个wregex类保存类型wchar_t，其操作与
+regex完全相同。两者唯一的差别是wregex的初始值必须使用wchar_t而不是char。
+	匹配和迭代器类型(我们将在下面小节中介绍)更为特殊。这些类型的差异不仅在于字符类型，还在于序列是在
+标准库string中还是在数组中:smatch表示string类型的输入序列；cmatch表示字符数组序列；wsmacth表示
+宽字符串(wstring)输入；而wcmatch表示宽字符数组。
+	重点在于我们使用的RE库类型必须与输入序列类型匹配。表17.8指出了RE库类型与输入序列类型的对应关系。
+例如:
+		regex r("[[:alnum:]]+\\.(cpp|cxx|cc)$",regex::icase);
+		smatch results;	//将匹配string输入序列，而不是char *
+		if(regex_search("myfile.cc",results,r))//错误:输入为char *
+			cout<<results.str()<<endl;
+这段代码会编译失败，因为match参数的类型与输入序列的类型不匹配。如果我们希望搜索一个字符数组，就必须
+使用cmatch对象:
+		cmatch results;	//将匹配字符数组输入序列；
+		if(regex_search("myfile.cc",results,r))
+			cout<<results.str()<<endl;	//打印当匹配
+			表17.8		正则表达式库类
+	如果输入序列类型			则使用正则表达式类
+		string				regex,smatch,ssub_match和sregex_iterator
+		const char*			regex,cmatch,csub_match和cregex_iterator
+		wstring				wregex,wsmatch,wssub_match和wsregex_iterator
+		const wchar_t*		wregex,wcmatch,wcsub_match和wcregex_iterator
+
+17.3.2	匹配与Regex迭代器类型
+	第646页中的程序查找违反"i在e之前，除非在c之后"规则的单词，它只打印输入序列中第一个匹配的单词。
+我们可以使用sregex_iterator来获得所有匹配。regex迭代器是一种迭代器适配器，被绑定到一个输入序列和
+一个regex对象上。如表17.8所述，每种不同输入序列类型都有对应的特殊regex迭代器类型。迭代器操作如表17.9
+所述:
+		表17.9:	sregex_iterator操作
+这些操作也适用于cregex_iterator、wsregex_iterator和wcregex_iterator
+									一个sregex_iterator，遍历迭代器b和e表示的string。
+	sregex_iterator　it(b,e,r)		它调用sregex_search(b,e,r)将it定位到输入中第一个
+									匹配的位置。
+	sregex_iterator end;			sregex_iterator的尾后迭代器
+
+	*it					根据最后一个调用regex_search的结果，返回一个smatch对象的引用或
+	it->				一个指向smatch对象的指针。
+	++it				从输入序列当前匹配位置开始调用regex_search。前置版本返回递增后
+	it++				迭代器；后置版本返回旧址
+	it1 == it2			如果两个sregex_iterator都是尾后迭代器，则它们相等;两个非尾后迭代
+	it1 != it2			器是从相同的输入序列和regex对象构造，则他们相等
+当我们将一个sregex_iterator绑定到一个string和一个regex对象时，迭代器自动定位到给定string中第一个
+匹配位置。即，sregex_iterator构造函数对给定string和regex调用regex_search。当我们解引用迭代器时，
+会得到一个对应最近一次搜索结果的smatch对象。
+
+使用sregex_iterator
+	作为一个例子，我们将扩招之前的程序，在一个文本文件中查找所有违反"i在e之前，除非在c之后"规则的单
+词。我们假定名为file的string保存了我们要搜索的输入文件的全部内容。这个版本的程序将使用与前一个版本
+一样的pattern，但会使用一个sregex_iterator来进行搜索:
+		//查找前一个字符不是c的字符串ei
+		string pattern("[^c]ei");
+		//我们想要包含pattern的单词的全部内容
+		pattern = "[[:alpha:]]*" + pattern + "[[:alpha:]]*";
+		regex r(pattern,regex:icase);	//在进行匹配时忽略大小写
+		//它将反复调用regex_search来寻找文件的中的所有匹配
+		for(sregex_iterator it(file.begin(),file.end(),r),end_it;it != end_it;++it)
+			cout<<it->str()<<endl;		//打印匹配的单词
+for循环遍历file中每个与r匹配的子串。for语句中的初始值定义了it和end_it。当我们定义it时，sregex_iterator
+的构造函数调用regex_search将it定位到file中第一个与r匹配的位置。而end_it是一个空sregex_iterator，
+起到尾后迭代器的作用。for语句中的递增运算符通过regex_search来"推进"迭代器。当我们解引用迭代器时，会
+得到一个表示当前匹配结果的smatch对象。我们调用它的str成员来打印匹配的单词。
+	我们可以将此循环想象为不断从一个匹配位置跳到下一个匹配位置。如图17.1所示:
+		sregex_iterator it(file.begin(),file.end(),r)
+		将it初始化为第一个匹配位置			最后一个匹配
+		| ||match1|| ||match2||...||matchi||...||matchn|| |
+		 |												 |
+     file.begin()									 file.end()
+
+使用匹配数据
+	如果我们对最初版本程序中的test_str运行此循环，则输出将是
+		freind
+		theif
+但是，仅获得与我们的正则表达式匹配的单词还不是那么有用。如果我们在一个更大的输入序列---例如，在本章英文
+版的文本上运行此程序---可能希望看到匹配单词出现的上下文，如:
+		hey read or write according to the type
+			>>> being <<<
+		handled The input operators ignore whi
+除了允许打印输入字符串中匹配的部分之外，匹配结果类还提供了有关匹配结果的更多细节信息。表17.10和表17.11
+列出了这些类型支持的操作。
+	我们将在下一节中介绍更多有关smatch和ssub_match类型的内容。目前，我们只需知道它们允许我们获得
+匹配的上下文即可。匹配类型有两个名为prefix和suffix的成员，分别返回表示输入序列中当前匹配之前和之后
+部分的ssub_match对象。一个ssub_match对象有两个名为str和length的成员，分别返回匹配的string和
+该string的大小。我们可以用这些操作重写语法程序的循环:
+		//循环头与之前一样
+		for(sregex_iterator it(file.begin(),file.end(),r),end_it;it != end_it;++it)
+		{
+			auto pos = it->prefix().length();	//前缀的大小
+			pos = pos > 40 ? pos-40 : 0;	//我们想要最多40个字符
+			cout<<it->prefix().str().substr(pos)
+				<<"\n\t\t>>>" <<it->str()<<" <<<\n"
+				<<it->suffix().str().substr(0,40)
+				<<endl;
+		}
+循环本身的工作方式与前一个程序相同。改变的是循环内部。如果17.2所示:
+	当it指向第i个smatch对象时			it->str()
+	|it->prefix().str()||xxxeixxx||it->suffix().set()|
+我们调用prefix，返回一个ssub_match对象，表示file中当前匹配之前的部分。我们对此ssub_match对象调用
+length，获得前缀部分的字符数目。接下来调整pos，使之指向前缀部分末尾向前40个字符的位置。如果前缀部分长
+度小于40个字符，我们将pos置为0，表示要打印整个前缀部分。我们用substr来打印指定位置到前缀部分末尾的内容。
+	打印了当前匹配之前的字符之后，我们接下来用特殊格式打印匹配的单词本身，使得它在输出中能突出显示出来。
+打印匹配单词之后，我们打印file中匹配部分之后的前(最多)40个字符:
+		表17.10	:		smatch操作
+这些操作也适用于cmatch、wsmatch、wcmatch和对应的csub_match、wssub_match和wcsub_match
+		m.ready()			如果已经通过调用regex_search或regex_match设置了m，则
+							对m进行操作是未定义的。
+		m.size()			如果匹配失败，则返回0；否则返回最近一次匹配的正则表达式中子表达式的数目
+		m.empty()			若m.size()为0，则返回true
+		m.prefix()			一个ssub_match对象，表示当前匹配之前的序列
+		m.suffix()			一个ssub_match对象，表示当前匹配之后的部分
+		m.format(...)		见表17.12
+	在接受一个索引的操作中，n的默认值为0且必须小于m.size()。第一个子匹配(索引为0)表示整个匹配。
+		m.length(n)			第n个匹配的子表达式的大小
+		m.position(n)		第n个子表达式距序列开始的距离
+		m.str(n)			第n个子表达式匹配的string
+		m[n]				对应第n个子表达式的ssub_match对象
+		m.begin(),m.end()	表示m中sub_match元素范围的迭代器。与往常一样，cbegin和cend
+		m.cbegin(),m.cend()	返回const_iterator
+		
+17.3.3	使用子表达式
+	正则表达式中的模式通常包含一个或多个子表达式。一个子表达式是模式的一部分，本身也具有意义。正则表
+达式语法通常用括号表示子表达式。
+	例如，我们用来匹配C++文件的模式就是用括号来分组可能的文件扩展名。每当我们用括号分组多个可行
+选项时，同时也就声明了这些选项形成子表达式。我们可以重写扩展名表达式，以使得模式中点之前表示文件名
+的部分也形成子表达式，如下所示:
+		//r有两个子表达式:第一个是点之前表示文件名的部分，第二个表示文件扩展名
+		regex r("([[:alnum:]]+)\\.(cpp|cxx|cc)$",regex::icase);
+现在我们的模式包含两个括号括起来的子表达式:
+		>>>	([[:alnum:]]+)，匹配一个或多个字符的序列
+		>>>	(cpp|cxx|cc)，匹配文件扩展名
+我们还可以重写17.3.1中的程序，通过修改输出语句使之只打印文件名。
+		if(regex_search(filename,results,r))
+			cout<<results.str(1)<<endl;	//打印第一个子表达式
+与最初的程序一样，我们还是调用regex_search在名为filename的string中查找模式r，并且传递smatch
+对象results来保存匹配结果。如果调用成功，我们打印结果。但是，在此版本中，我们打印的是str(1)，即，
+与第一个子表达式匹配的部分。
+	匹配对象除了提供匹配整体的相关信息外，还提供访问模式中每个子表达式的能力。子匹配是按位置来访问
+的。第一个子匹配位置为0。表示整个模式对应的匹配，随后是每个子表达式对应的匹配。因此，本例模式中第一
+个子表达式，即表示文件名的子表达式，其位置为1，而文件扩展名对应的子表达式位置为2。
+	例如，如果文件名为foo.cpp，则results.str(0)将保存foo.cpp；results.str(1)将保存foo；
+而results.str(2)将保存cpp。在此程序中，我们想要点之前的部分名字，即第一个子表达式，因此我们打印
+results.str(1)。
+
+子表达式用于数据验证
+	子表达式的一个常见用途是验证必须匹配特定格式的数据。例如，美国的电话号码有十位数，包含一个区
+号和一个七位本地号码。区号通常放在括号里，但这并不是必需的。剩余七位数字可以用一个短横线、一个点或
+是一个空格分割。但也可以完全不用分割符。我们可能希望接受任何这种格式的数据而拒绝任何其他格式的数。我
+们将分两步来实现这一目标：首先，我们将用一个正则表达式找到可能是电话号码的序列，然后再调用一个函数来
+完成数据验证。
+	在编写电话号码模式之前，我们需要介绍一下ECMAScript正则表达式语言的一些特性:
+		>>>	\{d}表示单个数字而\{d}{n}表示一个n个数字的序列。(如，\{d}{3}匹配三个数字的序列。)
+		>>>	在方括号中的字符集合表示匹配这些字符中任意一个。如[-.]匹配一个短横线或一个点或一个空格，
+注意，点在括号中没有特殊含义。！！
+		>>>	后接'?'的组件是可选的。(如，\{d}{3}[-.]?\{d}{4}匹配这样的序列:开始是三个数字，后
+接一个可选的短横线或点或空格，然后是四个数字。此模式可以匹配555-0132或555.0132或555 0132或
+5550132(也就是[-.]是可选的)
+		>>>	类似C++,ECMAScript使用反斜线表示一个字符本身而不是其特殊含义。由于我们的模式包含括号，
+而括号是ECMAScript中特殊的字符，因此我们必须用\(和\)来标识括号是我们的模式的一部分而不是特殊字符。
+由于反斜线是C++中特殊字符，在模式中每次出现\的地方，我们必须用一个额外的反斜线来告知C++我们需要一
+个反斜线字符而不是一个特殊符号。因此，我们用\\{d}{3}来表示正则表达式\{d}{3}。
+	为了验证电话号码，我们需要访问模式的组成部分。例如，我们希望验证区号部分的数字如果用了左括号，
+那么他是否也在区括号后面用了右括号。即，我们不希望出现(908.555.1800这样的号码。
+	为了获得匹配的组成部分，我们需要在定义正则表达式时使用子表达式。每个子表达式用一对括号包围:
+		//整个正则表达式包含7个子表达式:(ddd)分割符ddd分隔符dddd
+		//子表达式1、3、4和6是可选的；2、5和7保存号码
+		"(\\()?(\\d{3})(\\))?([-.])?(\\d{3})([-.]?)(\\d{4})";
+由于我们的模式使用了括号，而且必须去除反斜线的特殊含义，因此这个模式很难读(也很难写!)。理解此模式的
+最简单的方法是逐个剥离(括号包围的)子表达式:
+		1.(\\()?表示区号部分可选的左括号
+		2.(\\d{3})表示区号
+		3.(\\))?表示区号部分可选的右括号
+		4.([-.])?表示区号部分可选的分割符
+		5.(\\d{3})表示号码的下三位数字
+		6.([-.])?表示可选的分隔符
+		7.(\\d{4})表示号码的最后四位数字
+下面的代码读取一个文件，并用此模式查找与完整的电话号码模式匹配的数据。它会调用一个名为valid的函数
+来检查号码格式是否合法:
+		string phone = "(\\()?(\\d{3})(\\))?([-.])?(\\d{3})([-.]?)(\\d{4})";
+		regex r(phone);//regex对象，用于查找我们的模式
+		smatch m;
+		string s;
+		//从输入文件中读取每条记录
+		while(getline(cin,s)){
+			//对每个匹配的电话号码
+			for(sregex_iterator it(s.begin(),s.end(),r),end_it;it != end_it;++it){
+				if(valid(*it))
+					cout<<"valid: "<<it->str()<<endl;
+				else
+					cout<<"not valid: "<<it->str()<<endl;
+			}
+		}
+
+使用子匹配操作
+	我们将使用表17.11中描述的子匹配操作来编写valid函数。需要记住的重要一点是，我们的pattern有
+七个子表达式。与往常一样，每个smatch对象会包含八个ssub_match元素。位置[0]的元素表示整个匹配:元
+素[1]...[7]表示每个对应的子表达式。
+	当调用valid时，我们知道已经有一个完整的匹配，但不知道每个可选的子表达式是否是匹配的一部分。如
+果一个子表达式是完整匹配的一部分，则其对应的ssub_match对象的matched成员为true。
+		表17.11:		子匹配操作
+注意:这些操作适用于ssub_match、csub_match、wssub_match、wcsub_match。
+		matched		一个public bool数据成员，指出此ssub_match是都匹配了
+		first		public数据成员，指向匹配序列首元素和尾后位置的迭代器。如果未匹配
+		second		则first和second是相等的，
+		length		匹配的大小，如果matched为false，则返回0
+		str()		返回一个包含输入中匹配部分的string，如果matched为false，则返回
+					空string
+		s = ssub	将ssub_match对象ssub转换为string对象s。等价于s=ssub.str()
+					转换运算符不是explicit的。
+在一个合法的电话号码中，区号要么是完整括号包围的，要么完全没有括号。因此，valid要做什么工作依赖于
+号码是否以一个括号开始:
+		bool valid(const smatch &m)
+		{
+			//如果区号前有一个左括号
+			if(m[1].matched)
+				//则区号后必须有一个右括号，之后紧跟剩余号码或一个空格
+				return m3.matched && (m[4].matched == 0 || m[4].str() == " ");
+			else
+				//否则，区号后不能有右括号
+				//另两个组成部分见的分隔符必须匹配
+				return !m[3].matched && m[4].str() == m[6].str();
+		}
+我们首先检查第一个子表达式(即，左括号)是否匹配了。这个子表达式在m[1]中。如果匹配了，则号码是以
+左括号开始的。在此情况下，如果区号后的字表达式也匹配了(意味着区号后有右括号)则整个号码是合法的。
+而且，如果号码正确使用了括号，则下一个字符必须是一个空格或下一部分的第一个数字。
+	如果m[1]未匹配，(即，没有左括号)，则区号后面的子表达式也不应该匹配。如果它为空，则整个号
+码是合法的。
+
+17.3.4	使用regex_replace
+	正则表达式不仅用在我们希望查找一个给定序列的时候，还用在当我们想将找到的序列替换为另一个序
+列的时候。例如，我们可能希望将美国的电话号码转换为"ddd.ddd.dddd"的形式，即，区号和后面
+三位数字用一个点分隔。
+	当我们希望在输入序列中查找并替换一个正则表达式时，可以调用regex_replace。表17.12描述了
+regex_replace。类似搜索函数，它接受一个输入字符序列和一个regex对象，不同的是，它还接受一
+个描述我们想要的输出形式的字符串。
+			表17.12:		正则表达式替换操作
+									使用格式字符串fmt生成格式化输出，匹配在m中，可选的
+									match_flag_type标志在mft中。第一个版本写入迭代
+	m.format(dest,fmt,mft)			器dest指向的目的位置并接受fmt参数，可以是一个string
+									也可以是表示字符数组中范围的一对指针。第二个版本返
+	m.format(fmt,mft)				回一个string，保存输出，并接受fmt参数，可以是一个
+									string，也可以是指向空字符结尾的字符数组的指针。mft
+									的默认值为format_default
+
+									遍历seq，用regex_search查找与regex对象r
+									匹配的子串，使用格式字符串fmt和可选的match_flag_type
+									标志来生出输出。第一个版本将输出写入到迭代器dest指定
+regex__replace(dest,seq,r,fmt,mft)	的位置，并接受一对迭代器seq表示范围。第二个版本返回
+regex__replace(seq,r,fmt,mft)		一个string，保存输出，且seq既可以是一个string也可
+									以是一个指向空字符结尾的字符数组的指针。在所有情况下
+									fmt既可以是一个string也可以是一个指向空字符结尾
+									的字符数组的指针，且mft的默认值为match_default
+
+	替换字符串由我们想要的字符组合与匹配的子串对应的子表达式而组成，在本例中，我们希望在替换字符串
+中使用第二个、第五个和第七个子表达式。而忽略第一个、第三个、第四个和第六个子表达式，因为这些子表达式
+用来形成号码的原格式而非新格式中一部分。我们用一个符号$后跟子表达式的索引号来表示一个特定的子表达式:
+		string fmt = "$2.$5.$7";	//将号码格式改为ddd.dddd.ddd
+可以像下面这样使用我们的正则表达式模式和替换字符串:
+		regex r(phone);		//用来寻找模式的regex对象
+		string number = "(098) 555-1800";
+		cout<<regex_replace(number,r,fmt)<<endl;
+此程序的输出为:
+		908.555.1080
+只替换输入序列的一部分
+	正则表达式更有意思的一个用处是替换一个大文件中的电话号码。例如，我们有一个保存人名及其电话号码
+的文件:
+		morgan (201) 555-2368 862-555-0123
+		drew (962)555.0130
+		lee (609) 555-0132 2015550175 800.555-0000
+我们希望将数据转换为下面这样：
+		morgan 201.555.2368 862.555.0123
+		drew 962.555.0130
+		lee 609.555.0132 201.555.0175 800.555.0000
+可以用下面的程序完成这种转换:
+		int main(){
+			string phone = "(\\()?(\\d{3})(\\))?([-.])?(\\d{3})([-.]?)(\\d{4})";
+			regex r(phone);	//寻找模式所用的regex对象
+			smatch m;
+			string s;
+			string fmt = "$2.$5.$7";		//将号码格式改为ddd.ddd.dddd
+			//从输入文件中读取每条记录
+			while(getline(cin,s))
+				cout<<regex_replace(s,r,fmt)<<endl;
+			return 0;
+		}
+我们读取每条记录，保存到s中，并将其传递给regex_replace。此函数在输入序列中查找并转换所有匹配子串。
+
+用来控制匹配和格式的标志
+	就像标准库定义标志来指导如何处理正则表达式一样，标准库还定义了用来在替换过程中控制匹配或格式的
+标志。表17.13列出了这些值。这些标志可以传递给函数regex_search或regex_match或是smatch的
+format成员。
+	匹配和格式化标志的类型为match_flag_type。这些值都定义在名为regex_constants的命名空间中。
+类似用于bind的placeholders，regex_constants也是定义在命名空间std中的命名空间。为了使用
+regex_constants中的名字，我们必须在名字前同时加上两个命名空间的限定符:
+		using std::regex_constants::format_no_copy;
+此声明指出，如果代码中使用了format_no_copy，则表示我们想要使用命名空间std::constants中的这
+个名字。如下所示，我们也可以用另一种形式的using来替代上面的代码，我们将在18.2.2节中介绍这种形式:
+		using namespace std::regex_constants;
+			表17.13		匹配标志
+定义在regex_constants::match_flag_type中
+		match_default			等价于format_default
+		match_not_bol			不将首字符作为行首处理
+		match_not_eol			不将尾元素作为行尾处理
+		match_not_bow			不将首字符作为单词首处理
+		match_any				如果存在多于一个匹配，则可返回任意一个匹配
+		match_not_null			不匹配任何空序列
+		match_continuous		匹配必须从输入的首字符开始
+		match_prev_avail		输入序列包含第一个匹配之前的内容
+		format_default			用ECMAScript规则替换字符串
+		format_sed				用POSIX sed规则替换字符串
+		format_no_copy			不输出输入序列中未匹配的部分
+		format_first_only		只替换子表达式的第一次出现
+
+使用格式标志
+	默认情况下，regex_replace输出整个输入序列。未与正则表达式匹配的部分会原样输出:匹配的部分按格式
+字符串指定的格式输出。我们可以通过在regex_replace调用中指定format_no_copy来改变这种默认行为:
+		//只生成垫还号码：使用新的格式字符串
+		string fmt2 = "$2.$5.$7";	//在最后一部分号码后放置空格作为分隔符
+		//通知regex_replace只拷贝它替换的文本
+		cout<<regex_replace(s,r,fmt2,format_no_copy)<<endl;
+给定相同的输入，此版本的程序生成
+		201.555.2368 862.555.0123
+		962.555.0130
+		609.555.0132 201.555.0175 800.555.0000
+
