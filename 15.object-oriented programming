@@ -103,6 +103,7 @@ print_tota是使用引用类型调用net_price函数的，所以出于15.2.1节�
 			std::string bookNo;		//书籍的ISBN编号
 		protected:
 			double price = 0.0;		//代表普通状态下不打折的价格
+		};
 对于上面这个类来说，新增的部分是在net_price函数和析构函数之前增加的virtual关键字以及最后的protected访问
 说明符。我们将在15.7.1节详细介绍虚析构函数的知识，现在只需记住作为继承关系中根节点的类通常都会定义一个虚析
 构函数。
