@@ -118,3 +118,396 @@ free函数接受一void *，它是malloc返回的指针的副本，free将相关
 			free(mem);
 		}
 
+19.1.2	定位new表达式
+	尽管operator new函数和operator delete函数一般用于new表达式，然而它们毕竟是标准库的两个
+的函数，因此普通的代码也可以直接调用它们。在C++早期的版本中，alloctor类还不是标准库的一部分。应用
+程序如果想把内存分配与初始化分离开来的话，需要调用operator new和operator delete。这两个函数
+的行为与allocator的allocate成员和deallocate成员非常类似。他们负责分配或释放内存空间，但是
+不会构造或销毁对象。
+	与allocator不同的是，对于operator new分配的内存空间来说我们无法使用construct函数构造
+对象。相反，我们应该使用new的定位new形式构造对象。如我们所见，new的这种形式为分配函数提供了额外
+的信息。我们可以定位new传递一个地址，此时定位new的形式如下所示:
+		new (place_address) type
+		new (place_address) type(initializers)
+		new (place_address) type[size]
+		new (place_address) type[size] {braced initializer list}
+其中place_address必须是一个指针，同时在initializers中提供一个(可能为空的)以逗号分隔的初始值
+列表，该初始值列表将用于构造新分配的对象。
+	当仅通过一个地址调用时，定位new使用operator new(size_t,void*)分配它的内存。这是一个
+我们无法自定义的operator new版本。该函数不分配任何内存，它只是简单的返回指针实参；然后由new
+表达式负责在指定的地址初始化对象以完成整个工作。事实上，定位new允许我们在一个特定的，预先分配
+的内存地址上构造对象。
+注意:
+	当只传入一个指针类型的实参时，定位new表达式构造对象但是不分配对象。
+尽管在很多时候使用定位new与allocator的construct成员非常类似，但在他们之间也有一个重要的区别。
+我们传给construct的指针必须指向同一个allocator对象分配的空间，但是传给定位new的指针无须指向
+operator new分配的内存。实际上如我们将在19.6节介绍的，传给定位new表达式的指针甚至不需要指向
+动态内存。
+
+显示的析构函数调用
+	就像定位new与使用allocate类似一样，对析构函数的显示调用也与使用destroy很类似。我们既可
+以通过对象调用析构函数，也可以通过对象的指针或引用调用析构函数，这与调用其他成员函数没什么区别:
+				string *sp = new string("a value");	//分配并初始化一个string对象
+				sp->~string();
+在这里我们直接调用了一个析构函数。箭头运算符解引用指针sp以获得sp所指的对象，然后我们调用析构函
+数，析构函数的形式是波浪线(~)加上类型的名字。
+	和调用destroy类似，调用析构函数可以清除给定的对象但是不会释放该对象所在的空间。如果需要的
+话，我们可以重新使用该空间。
+注意:
+	调用析构函数会销毁对象，但是不会释放内存。
+
+19.2	运行时类型识别
+	运行时类型识别(RTTI)的功能由两个运算符实现:
+		>>>	typeid运算符，用于返回表达式的类型
+		>>>	dynamic_cast运算符，用于将基类的指针或引用安全地转换成派生类的指针或引用
+当我们将这两个运算符用于某种类型的指针或引用，并且该类型含有虚函数时，运算符将使用指针或引用所
+绑定对象的动态类型。
+	这两个运算符特别适用于以下情况:我们想使用基类对象的指针或引用执行某个派生类操作并且该操作
+不是虚函数。一般来说，只要有可能我们应该尽量使用虚函数。当操作被定义为虚函数时，编译器将根据对
+象的动态类型自动地选择正确的函数版本。
+	然而，并非任何时候都能定义一个虚函数。假设我们无法使用虚函数，则可以使用一个RTTI运算符。
+另一方面，与虚成员函数相比，使用RTTI运算符蕴含着更多潜在的风险:程序员必须清楚的知道转换目标类
+型并且必须检查类型转换是否成功执行。
+注意:
+	使用RTTI必须要加倍小心。在可能的情况下，最好定义虚函数而非直接接管类型管理的重任。
+
+19.2.1	dynamic_cast运算符
+	dynamic_cast运算符(dynamic_cast operator)的使用形式如下所示:
+		dynamic_cast<type*>(e)
+		dynamic_cast<type&>(e)
+		dynamic_cast<type&&>(e)
+其中，type必须是一个类类型，并且通常情况下该类型应该含有虚函数。在第一种形式中，e必须是一个
+有效的指针；在第二种形式中，e必须是一个左值；在第三章形式中，e不能是左值。
+	在上面的所有形式中，e的类型必须符合以下三个条件中的任意一个：e的类型是目标type的公有派生
+类、e的类型是目标type的公有基类或者e的类型就是目标type。如果符合，则类型转换可以成功。否则
+，转换失败。如果一条dynamic_cast语句的转换目标是指针类型并且失败了，则结果为0。如果转换目标
+是引用类型并且失败了，则dynamic_cast运算符将抛出一个bad_cast异常。
+
+指针类型的dynamic_cast
+	举个简单的例子，假定Base类至少含有一个虚函数，Derived是Base的公有派生类。如果有一个
+指向Base的指针bp，则我们可以在运行时将它转换成指向Derived的指针，具体代码如下:
+			if(Derived *dp = dynamic_cast<Derived*>(bp))
+			{
+				//使用dp指向的Derived对象
+			}
+			else{
+					//bp指向一个Base对象
+					//使用bp指向的Base对象
+			}
+如果bp指向Derived对象，则上述的类型转换初始化dp并令其指向bp所指的Derived对象。此时，if语
+句内部使用Derived操作的代码是安全的。否则，类型转换的结果为0，dp为0意味着if语句的条件失败，
+此时else子句执行的Base操作。
+注意:
+	我们可以对一个空指针执行dynamic_cast，结果是所需类型的空指针。
+值得注意的一点是，我们在条件部分定义了dp，这样做的好处是可以在一个操作中同时完成类型转换和条件
+检查两项任务。而且，指针dp在if语句外部是不可访问的。一旦转换失败，即使后续的代码忘了做相应的
+判断，也不会接触到这个未绑定的指针，从而确保程序是安全的。
+注意:
+	在条件部分执行dynamic_cast操作可以确保类型转换和结果检查在同一条表达式中完成。
+
+引用类型的dynamic_cast
+	引用类型的dynamic_cast与指针类型的dynamic_cast在表示错误发生的方式上略有不同。因为，
+不存在所谓的空引用，所以对于引用类型来说无法使用与指针类型完全相同的错误报告策略。当对引用的
+类型转换失败时，程序抛出一个名为std::bad_cast的异常，该异常定义在ypeinfo标准库头文件中。
+	我们可以按照如下形式改写之前的程序，令其使用引用类型:
+			void f(const Base &b){
+				try{
+					const Derived &d = dynamic_cast<Derived &>(b);
+					//使用b引用的Derived对象
+				}catch(bad_cast){
+					//处理类型转换失败的情况
+				}
+			}
+
+19.2.2 typeid运算符
+	为RTTI提供的第二个运算符是typeid运算符，它允许程序向表达式提问：你的对象是什么类型？
+typeid表达式的形式是typeid(e)，其中e可以是任意表达式或类型的名字。typeid操作的结果是
+一个常量对象的引用，该对象的类型是标准库类型type_info或者type_info的公有派生类型。
+type_info类定义在typeinfo头文件中，19.2.4节中将介绍更多关于type_info的细节。
+	typeid运算符可以作用于任意类型的表达式。和往常一样，顶层const被忽略，如果表达式是一
+个引用，则typeid返回该引用所引对象的类型。不过当typeid作用于数组或函数时，并不会执行向
+指针的标准类型转换。也就是说，如果我们对数组a执行typeid(a)，则所得的结果是数组类型而非
+指针类型。
+	当运算对象不属于类类型或者是一个不包含任何虚函数的类时，typeid运算符指示的是运算对象
+的静态类型。而当运算对象是定义了至少一个虚函数的类的左值时，typeid的结果直到运行时才会求
+得。
+
+使用typeid运算符
+	通常情况下，我们使用typeid比较两条表达式的类型是否相同，或者比较一条表达式的类型是否
+与指定类型相同:
+			Derived *dp = new Derived;
+			Base *bp = dp;	//两个指针都指向Derived对象
+			//在运行时比较两个对象的类型
+			if(typeid(*bp) == typeid(*dp)){
+				//bp和dp指向同一类型的对象
+			}
+			//检查运行时类型是否是某种指定的类型
+			if(typeid(*bp) == typeid(Derived)){
+				//bp实际指向Derived对象
+			}
+在第一个if语句中，我们比较bp和dp所指的对象的动态类型是否相同。如果相同，则条件成功。类似
+的，当bp当前所指的是一个Derived对象时，第二个if语句的条件满足。
+	注意，typeid应该作用于对象，因此我们使用*bp而非bp:
+			//下面的检查永远是失败的:bp的类型是指向Base的指针
+			if(typeid(bp) == typeid(Derived)){
+				//此处的代码永远不会执行
+			}
+这个条件比较的类型是Base *和Derived。尽管指针所指的对象类型是一个含有虚函数的类，但是指
+针本身并不是一个类类型的对象。类型Base *将在编译时求值，显然它与Derived不同，因此不论bp
+所指的对象到底是什么类型，上面的条件都不会满足。
+注意:
+	当typeid作用于指针时(而非指针所指的对象)，返回的结果是该指针的静态编译时类型。
+typeid是否需要运行时检查决定了表达式是否会被求值。只有当类型含有虚函数时，编译器才会对表
+达式求值。反之，如果类型不含有虚函数，则typeid返回表达式的静态类型；编译器无须对表达式
+求值也能知道表达式的静态类型。
+	如果表达式的动态类型可能与静态类型不同，则必须在运行时对表达式求值以确定返回的类型。
+这条规则适用于typeid(*p)的情况。如果指针p所指的类型不含有虚函数，则p不必非得是一个有效
+的指针。否则，*p将在运行时求值，此时p必须是一个有效的指针。如果p是一个空指针，则typeid
+(*p)将抛出一个名为bad_typeid的异常。
+
+19.2.3	使用RTTI
+	在某些情况下RTTI非常有用，比如当我们想为具有继承关系的类实现相等运算符时。对于两个
+对象来说，如果它们的类型相同并且对应的数据成员取值相同，则我们说这两个对象是相等的。在类
+的继承体系中，每个派生类负责添加自己的数据成员，因此派生类的相等运算符必须把派生类的新成
+员考虑起来。
+	一种容易想到的解决方案是定义一套虚函数，令其在继承体系的各个层次上分别执行相等性判断。
+此时，我们可以为基类的引用定义一个相等运算符，该运算符将它的工作委托给函数equal，由equal
+负责实际的操作。
+	遗憾的是，上述方案是很难奏效。虚函数的基类版本和派生类版本必须具有相同的形参类型。如果
+我们想定义一个虚函数equal，则该函数的形参必须是基类的引用。此时，equal函数将只能使用基类
+的成员，而不能比较派生类独有的成员。
+	要想实现真正有效的相等比较操作，我们需要首先明白一个事实：即如果参与比较的两个对象类型
+不同，则比较结果为false，例如，如果我们试图比较一个基类对象和一个派生类对象，则==运算符应
+该返回false。
+	基于上述推论，我们就可以使用RTTI解决问题了。我们定义的相等运算符的形参是基类的引用，
+然后使用typeid检查两个运算对象的类型是否一致。如果运算对象的类型不一致，则==返回false；
+类型一致才调用equal函数。每个类定义的equal函数负责比较类型自己的成员。这些运算符接受Base
+&形参，但是在进行比较操作前先把运算对象转换成运算符所属的类类型。
+
+类的层次关系
+	为了更好的解释上述概念，我们定义两个示例类:
+			class Base{
+				friend bool operator==(const Base &,const Base &);
+			public:
+				//Base的接口成员
+			protected:
+				virtual bool equal(const Base&)const;
+			};
+			class Derived : public Base{
+			public:
+				//Derived的其他成员
+			protected:
+				bool equal(const Base &)const;
+				//Derived的数据成员并和其他用于实现的成员
+			};
+
+类型敏感的相等运算符
+	接下来介绍我们是如何定义整体的相等运算符的:
+			bool operator==(const Base &lhs,const Base &rhs){
+				//如果typeid不相同，返回false，否则虚调用equal
+				return typeid(lhs)==typeid(rhs) && lhs.equal(rhs);
+			}
+在这个运算符中，如果运算对象的类型不同则返回false。否则，如果运算对象的类型相同，则运算符
+将其工作委托给虚函数equal。当运算对象是Base的对象时，调用Base::equal；当运算对象是Derived
+的对象时，调用Derived::equal。注意这里的一个细节：首先是先判断类型是否一样，然后再使用
+equal。这里使用了&&的短路性质来的。
+
+虚equal函数
+	继承体系中的每个类必须定义自己的equal函数。派生类的所有函数还要做的第一件事都是相同
+的，那就是将实参的类型转换为派生类类型:
+			bool Derived::equal(const Base &rhs)const{
+				//我们清楚这两个类型是相等的，所以转换过程不会抛出异常
+				auto r = dynamic_cast<const Derived &>(rhs);
+				//执行比较两个Derived对象的操作并返回结果
+			}
+上面的类型转换永远不会失败，因为毕竟我们只有在验证了运算对象的类型相同后才会调用该函数。然
+而这样的类型转换是必不可少的，执行了类型转换后，当前函数才能访问右侧运算对象的派生类成员。
+
+基类equal函数
+	下面这个操作比其他的稍微简单一点:
+			bool Base::equal(const Base &rhs)const{
+				//执行比较Base对象的操作
+			}
+无须事先转换形参的类型。*this和形参都是Base对象，因此当前对象可用的操作对于形参类型同样
+有效。
+
+19.2.4	type_info类
+	type_info类的精确定义随着编译器的不同而略有差异。不过，C++标准规定type_info类必须
+定义在typeinfo头文件中，并且至少提供表19.1所列的操作。
+				表19.1:		type_info的操作
+		t1 == t2			如果type_info对象t1和t2表示同一种类型，返回true；否则
+							返回false
+		t1 != t2			如果type_info对象t1和t2表示不同的类型，返回true；否则
+							返回false
+		t.name()			返回一个C风格字符串，表示类型名字的可打印形式。类型名字的
+							生成方式因系统而异
+		t1.before(t2)		返回一个bool值，表示t1是否位于t2之前。before所采用的顺
+							序关系是依赖于编译器的
+除此之外，因为type_info类一般是作为一个基类出现，所以它还应该提供一个公有的虚析构函数。当
+编译器希望提供额外的类型信息时，通常在type_info的派生类中完成。
+	type_info类没有默认构造函数，而且它的拷贝和移动构造函数以及赋值运算符都被定义成删除的。
+因此，我们无法定义或拷贝type_info类型的对象，也不能为type_info类型的对象赋值。创建type_info
+对象唯一的途径是使用typeid运算符。
+	type_info类的name成员函数返回一个C风格字符串，表示对象的类型名字。对于某种给定的类型
+来说，name的返回值因编译器而异并且不一定与在程序中使用的名字一致。对于name返回值的唯一要求
+是，类型不同则返回的字符串必须有所区别。例如:
+		int arr[10];
+		Derived d;
+		Base *p = &d;
+		cout << typeid(42).name()<<", "<< typeid(arr).name()<<", "
+			 << typeid(Sales_data).name()<<", "<<typeid(std::string).name()<<","
+			 << typeid(p).name()<<", "<<typeid(*p).name()<<endl;
+		在本书的作者的计算机上运行的结果是:
+				i,A10_i,10Sales_data,Ss,P4Base,7Derived
+注意:
+	type_info类在不同的编译器上有所区别。有的编译器提供了额外的成员函数以提供程序中所用类型
+的额外信息。读者应该仔细阅读你所用编译器的使用手册，从而获取关于type_info的更多细节。
+
+19.3	枚举类型
+	枚举类型使我们可以将一组整型常量组织在一起。和类一样，每个枚举类型定义了一种新的类型。枚举
+属于字面值常量类型。
+	C++包含两种枚举：限定作用域的和不限定作用域的。C++11新标准引入了限定作用域的枚举类型。
+定义限定作用域的枚举类型的一般形式是:首先是关键字enum class(或则等价的使用enum struct)，
+随后是枚举类型名字以及用花括号括起来的以逗号分隔的枚举成员列表，最后是一个分号：
+			enum class open_modes { input,output,append};
+我们定义了一个名为open_mode的枚举类型，它包含了三个枚举成员:input,output,append。
+	定义不限定作用域的枚举类型时省略掉关键字class或struct，枚举类型的名字是可选的:
+			enum color{red,yellow,green};		//不限定作用域的枚举类型
+			//未命名的、不限定作用域的枚举类型
+			enum {floatPrec = 6,doublePrec=10,double_doublePrec=10};
+如果enum是是未命名的，则我们只能在定义该enum时定义它的对象。和类的定义类似，我们需要在
+enum定义的右侧花括号和最后的分号之间提供逗号分隔的声明列表。
+
+枚举成员
+	在限定作用域的枚举类型中，枚举成员的名字遵循常规的作用域准则，并且在枚举类型的作用域外
+是不可访问的。与之相反，在不限定作用域的枚举类型中，枚举成员的作用域与枚举类型本身的作用域
+相同:
+			enum color{red,yellow,green};		//不限定作用域的枚举类型
+			enum stoplight{red,yellow,green};	//错误：重复定义了枚举成员
+			enum class peppers{red,yellow,green};//正确:枚举成员被隐藏了
+			color eyes = green;		//正确：不限定作用域的枚举类型的枚举成员位于有效的作用域中
+			peppers p = green;		//错误：peppers的枚举成员不在有效的作用域中
+									//color::green在有效作用域中，但是类型错误
+			color hair = color::red;		//正确：允许显示地访问枚举成员
+			peppers p2 = peppers::red;		//正确：使用peppers的red
+默认情况下，枚举值从0开始，依次加1。不过我们也能为一个或几个枚举成员指定专门的值:
+			enum class intTypes{
+				charTyp = 8,shortTyp = 16,intTyp = 16,
+				longTyp = 32,long_longTyp = 64
+			};
+由枚举成员intTyp和shortTyp可知，枚举值不一定唯一。如果我们没有显示地提供初始值，则当前
+枚举成员的值等于之前枚举成员的值加1。
+	枚举成员是const，因此在初始化枚举成员时提供的初始值必须是常量表达式。也就是说，每个
+枚举成员本身是就是一条常量表达式，我们可以在任何需要常量表达式的地方使用枚举成员。例如，我
+们可以定义枚举类型的constexpr变量:
+			constexpr intTypes charbits = intTypes::charTyp;
+类似的，我们也可以将一个enum作为switch语句的表达式，而将枚举值作为case标签。出于同样的
+原因，我们还可以将枚举类型作为一个非类型模板形参使用；或者在类的定义中初始化枚举类型的静态
+数据成员。
+
+和类一样，枚举也定义新的类型
+	只要enum有名字，我们就能定义并初始化该类型的成员。要想初始化enum对象或者作为enum
+对象赋值，必须使用该类型的一个枚举成员或者该类型的另一对象:
+			open_modes om = 2;	//错误：2不属于类型open_modes
+			om = open_modes::input;	//正确:input是open_modes的一个枚举成员
+一个不限定作用域的枚举类型的对象或枚举成员自动地转换成整型。因此，我们可以在任何需要整型
+值的地方使用他们:
+			int i = color::red;		//正确：不限定作用域的枚举类型的枚举成员隐式
+									//地转换成int
+			int j = peppers::red;	//错误：限定作用域的枚举类型不会进行隐式转换！！！！
+
+指定enum的大小
+	尽管在每个enum都定义了唯一的类型，但实际上enum是由某种整数类型表示的。在C++11新标准
+中，我们可以在enum的名字后加上冒号以及我们想在该enum中使用的类型:
+			enum intValues : unsigned long long {
+				charTyp = 255,shortTyp = 65535,intTyp = 65535,longType=4294967295UL,
+				long_longTyp = 18446744073709551615ULL
+			};
+如果我们没有指定enum的潜在类型，则默认情况下限定作用域的enum成员类型是int。对于不限定作
+用域的枚举类型来说，其枚举成员不存在默认类型，我们只知道成员的潜在类型足够大，肯定能够容纳
+枚举值。如果我们指定了枚举成员的潜在类型（包括对限定作用域的enum的隐式指定），则一旦某个枚
+举成员的值超出了该类型所能容纳的范围，将引发程序错误。
+	指定enum潜在类型的能力使得我们可以控制不同实现环境中使用的类型，我们将可以确保在一种
+实现环境中编译通过的程序所生成的代码与其他实现环境中生成的代码一致。
+
+枚举类型的前置声明
+	在C++11新标准中，我们可以提前声明enum。enum的前置声明（无论隐式地还是显示地）必须
+指定其成员的大小：
+			//不限定作用域的枚举类型intValues的前置声明
+			enum intValues : unsigned long long;	//不限定作用域的，必须指定成员
+													//类型
+			enum class open_modes;		//限定作用域的枚举类型可以使用默认成员类型int
+因为不限定作用域的enum未指定成员的默认大小，因此每个声明必须指定成员的大小。对于限定作用域的
+enum来说，我们可以不指定其成员的大小，这个值被隐式地定义成int。
+	和其他声明语句一样，enum的声明必须和定义必须匹配，这意味着在该enum的所有声明和定义中成
+员的大小必须一致。而且，我们不能在同一个上下文中先声明一个不限定作用域的enum名字，然后在声明
+一个同名的限定作用域的enum:
+			//错误：所有的声明和定义必须对该enum是限定作用域的还是不限定作用域的保持一致。
+			enum class intValues;
+			enum intValues;				//错误：intValues已经被声明成限定作用域的enum
+			enum intValues : long;		//错误:intValues已经被声明成int
+
+形参匹配与枚举类型
+	要想初始化一个enum对象，必须使用该enum类型的另一个对象或者它的一个枚举成员。因此，即使
+某个整型值恰好与枚举成员的值相等，它也不能作为函数的enum实参使用:
+			//不限定作用域的枚举类型，潜在类型因机器而异
+			enum Tokens { INLINE = 128,VIRTUAL = 129};
+			void ff(TOkens);
+			void ff(int);
+			int main(){
+				Tokens curTok = INLINE;
+				ff(128);			//精确匹配ff(int);
+				ff(INLINE);			//精确匹配ff(Tokens)
+				ff(curTok);			//精确匹配ff(Tokens)
+				return 0;
+			}
+尽管我们不能直接将整型值传递给enum形参，但是可以将一个不限定作用域的枚举类型的对象或枚举成员
+传给整型形参。此时，enum的值提升成int或更大的整型，实际提升的结果由枚举类型的潜在类型决定:
+			void newf(unsigned char);
+			void newf(int);
+			unsigned char uc = VIRTUAL;
+			newf(VIRTUAL);				//调用newf(int)
+			newf(uc);					//调用newf(unsigned char)
+枚举类型Tokens只有两个枚举成员，其中较大的那个值是129。该枚举类型可以用unsigned char
+来表示，因此很多编译器使用unsigned char作为Tokens的潜在类型。不管Tokens的潜在类型到底
+是什么，它的对象和枚举成员都提升成int。尤其是，枚举成员永远不会提升成unsigned char，即
+使枚举值可以用unsigned char存储也是如此。
+
+19.4	类成员指针
+	成员指针是指可以指向类的非静态成员的指针。一般情况下，指针指向一个对象，但是成员指针指示
+的是类的成员，而非类的对象。类的静态成员不属于任何对象，因此，无须特殊的指向静态成员的指针，
+指向静态成员的指针与普通指针没有什么区别。
+	成员指针的类型囊括了类的类型以及成员的类型。当初始化一个这样的指针时，我们令其指向类的
+某个成员，但是不指定该成员所属的对象；直到使用成员指针时，才提供成员所属的对象。
+	为了解释成员指针的原理，不妨使用7.3.1节的Screen类:
+			class Screen{
+			public:
+				typedef std::string::size_type pos;
+				char get_cursor() const {return contents[cursor];}
+				char get()const;
+				char get(pos ht,pos wd)const;
+			private:
+				std::string contents;
+				pos cursor;
+				pos height,width;
+			};
+19.4.1	数据成员指针
+	和其他指针一样，在声明成员指针时我们也使用*来表示当前声明的名字是一个指针。与普通指针不
+同的是，成员指针还必须包含成员所属的类。因此，我们必须在*之前添加classname::以表示当前定义
+的指针可以指向classname的成员。例如:
+			//pdata可以指向一个常量(非常量)Screen对象的string成员
+			const string Screen::*pdata;
+上述语句将pdata声明成"一个指向Screen类的const string成员的指针"。常量对象的数据成员本身
+也是常量，因此，将我们的指针声明成指向const string成员的指针意味着pdata可以指向任何Screen
+对象的一个成员，而不管该Screen对象是否是常量。作为交换条件，我们只能使用pdata读取它所指的成
+员，而不能向它写入内容。
+	当我们初始化一个成员指针(或者向它赋值)时，需指定它所指的成员。例如，我们可以令pdata指向
+某个非特定Screen对象的contents成员:
+			pdata = &Screen::contents;
+其中，我们将取地址运算符作用于Screen类的成员而非内存中的一个该类对象。当然，在C++11新标准中
+声明成员指针最简单的方法是使用auto或decltype：
+			auto pdata = &Screen::contents;
+
+使用数据成员指针
+	读者必须清楚的一点是，当我们初始化一个成员指针或为成员指针赋值时，该指针并没有指向任何数据。
+成员指针指定了成员而非该成员所属的对象。
